@@ -641,12 +641,12 @@ user_sessions = {}
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, "به ربات دکتر ارور خوش اومدید")
+    bot.send_message(message.chat.id, "به بمبر دکتر ERROR خوش اومدي ")
 
 @bot.message_handler(commands=['bomb'])
 def bomb(message):
     user_sessions[message.chat.id] = "waiting_phone"
-    bot.send_message(message.chat.id, "شماره:")
+    bot.send_message(message.chat.id, "شماره بده بيبي تا بگامش:")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
