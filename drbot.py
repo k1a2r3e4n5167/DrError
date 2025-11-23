@@ -1,11 +1,17 @@
-import requests
+import os
 import telebot
-import random
+import requests
+from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 from telebot import types
+import random
 import re
-from concurrent.futures import ThreadPoolExecutor
 
-bot = telebot.TeleBot('8392850439:AAHlJTOEGk9eGh6k-XuV_ZII5jj3xcRYyaU')  # توکن خودت را جایگزین کن
+BOT_TOKEN = os.environ.get("8392850439:AAHlJTOEGk9eGh6k-XuV_ZII5jj3xcRYyaU")
+bot = telebot.TeleBot(BOT_TOKEN)
+
+# بقیه کد ربات همان کد خودت …
+
+
 
 # ------------------- لیست APIها -------------------
 APIS = {
