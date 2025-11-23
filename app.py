@@ -1,17 +1,17 @@
 import os
 import telebot
 import requests
-from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 from telebot import types
 import random
 import re
+from concurrent.futures import ThreadPoolExecutor
 
-BOT_TOKEN = os.environ.get("8392850439:AAHlJTOEGk9eGh6k-XuV_ZII5jj3xcRYyaU")
+# ------------------- خواندن توکن از Environment Variable -------------------
+BOT_TOKEN = os.environ.get("BOT_TOKEN")  # توکن باید در Railway به عنوان Environment Variable تعریف شود
+if not BOT_TOKEN:
+    raise ValueError("توکن BOT_TOKEN در متغیرهای محیطی تنظیم نشده است!")
+
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# بقیه کد ربات همان کد خودت …
-
-
 
 # ------------------- لیست APIها -------------------
 APIS = {
@@ -51,7 +51,6 @@ def send_otp(api_name, api, phone_number):
             data = response.text
         return f"✅ پاسخ {api_name}: {data}"
     except requests.exceptions.RequestException as e:
-        # فقط همان API را خطا می‌زنیم، بقیه ادامه پیدا می‌کنند
         return f"❌ خطا در {api_name}: {e}"
 
 def send_otp_to_all(phone_number):
@@ -82,42 +81,39 @@ def process_phone(message):
 
 # ------------------- دستورات اصلی ربات -------------------
 
-# /start
 @bot.message_handler(commands=['start'])
-def Welcome(message):
-    bot.reply_to(message, 'به ربات یه نوب خوش آمدید!')
+def welcome(message):
+    bot.reply_to(message, 'به ربات خوش آمدید!')
     bot.reply_to(message, 'لطفا از این ربات توقع زیادی نداشته باشید!')
     bot.reply_to(message, 'با زدن /help کارهای این ربات را می‌بینید')
 
-# /hello
 @bot.message_handler(commands=['hello'])
-def Name(message):
+def ask_name(message):
     bot.send_message(message.chat.id, 'اسم خود را وارد کنید:')
-    bot.register_next_step_handler(message, NameP)
+    bot.register_next_step_handler(message, name_handler)
 
-def NameP(message):
+def name_handler(message):
     name = message.text
     if re.match(r"^[a-zA-Z\sآ-ی]*$", name):
         bot.send_message(message.chat.id, f'سلام {name} چند سالته؟')
-        bot.register_next_step_handler(message, AgeP)
+        bot.register_next_step_handler(message, age_handler)
     else:
         bot.send_message(message.chat.id, 'اسم خود را درست وارد کنید')
-        bot.register_next_step_handler(message, NameP)
+        bot.register_next_step_handler(message, name_handler)
 
-def AgeP(message):
+def age_handler(message):
     age = message.text
     if age.isdigit():
         bot.send_message(message.chat.id, f'موفق باشی')
     else:
         bot.send_message(message.chat.id, 'سن خود را درست وارد کنید')
-        bot.register_next_step_handler(message, AgeP)
+        bot.register_next_step_handler(message, age_handler)
 
-# بررسی کلمات توهین‌آمیز
 @bot.message_handler(func=lambda message: any(word in message.text.lower() for word in ['kir', 'koz', 'kos', 'kos nanat', 'kiri', 'koni', 'mamano', 'کیر','کص']))
-def answer_age(message):
+def filter_bad_words(message):
     bot.send_message(message.chat.id, 'برو بچه کونی')
 
-# /jagh
+# ------------------- لینک‌ها -------------------
 button1 = types.InlineKeyboardButton(text='Porn_Hub', url='https://www.pornhub.com/')
 button2 = types.InlineKeyboardButton(text='Xvideos', url='https://www.xvideos.com/')
 button3 = types.InlineKeyboardButton(text='Xnxx', url='https://www.xnxx.com/')
@@ -125,10 +121,10 @@ Inline_Keyboard = types.InlineKeyboardMarkup(row_width=1)
 Inline_Keyboard.add(button1, button2, button3)
 
 @bot.message_handler(commands=['jagh'])
-def Link(message):
+def send_links(message):
     bot.reply_to(message, 'ای جقی 😂', reply_markup=Inline_Keyboard)
 
-# /bazi
+# ------------------- بازی سنگ کاغذ قیچی -------------------
 @bot.message_handler(commands=['bazi'])
 def start_game(message):
     markup = types.InlineKeyboardMarkup()
@@ -148,15 +144,7 @@ def handle_game_choice(call):
         user_choice = call.data
         bot_choice = random.choice(["rock", "paper", "scissors"])
         result = determine_winner(user_choice, bot_choice)
-        user_choice_image = get_choice_image(user_choice)
-        bot_choice_image = get_choice_image(bot_choice)
-        bot.send_photo(call.message.chat.id, user_choice_image, caption=f"انتخاب شما: {user_choice}")
-        bot.send_photo(call.message.chat.id, bot_choice_image, caption=f"انتخاب من: {bot_choice}")
-        bot.send_message(call.message.chat.id, result)
-        markup = types.InlineKeyboardMarkup()
-        restart_button = types.InlineKeyboardButton("شروع مجدد", callback_data="restart")
-        markup.add(restart_button)
-        bot.send_message(call.message.chat.id, "آیا می‌خواهید بازی را دوباره شروع کنیم؟", reply_markup=markup)
+        bot.send_message(call.message.chat.id, f"انتخاب شما: {user_choice}\nانتخاب من: {bot_choice}\nنتیجه: {result}")
 
 def determine_winner(user_choice, bot_choice):
     if user_choice == bot_choice:
@@ -168,17 +156,9 @@ def determine_winner(user_choice, bot_choice):
     else:
         return "من بردم"
 
-def get_choice_image(choice):
-    if choice == "rock":
-        return "https://media.istockphoto.com/id/2161977156/photo/stone-image-on-a-white-background.jpg?s=1024x1024&w=is&k=20&c=CELxA0w0s8h-zdscd_MHVuFobmsEWZqb1VMtakCh3QQ="
-    elif choice == "paper":
-        return "https://media.istockphoto.com/id/1501496073/photo/blank-a4-paper-on-white-background.jpg?s=1024x1024&w=is&k=20&c=H0o1GpGNl9aTbQ9-FmEQUJ89yJiS01KzJLz_Ln1WnQg="
-    elif choice == "scissors":
-        return "http://t3.gstatic.com/licensed-image?q=tbn:ANd9GcRuoTRO-VCcFSDxLxO4e8Ifvld1w5FbOJSibhdkWsMOoU_hfh_IzJLWeRj5zWwjhu_GwgmAbVGFC238AO_HSkE"
-
-# /help
+# ------------------- کمک‌ها -------------------
 @bot.message_handler(commands=['help'])
-def help(message):
+def help_command(message):
     bot.reply_to(message, 'با زدن /hello میتوانید با من مکالمه کوتاهی داشته باشید')
     bot.reply_to(message, 'با زدن /bazi با من سنگ کاغذ قیچی بازی کنیم')
     bot.reply_to(message, 'برای گزینه بعدی به User https://t.me/KarenKH1 در تلگرام پیام دهید')
