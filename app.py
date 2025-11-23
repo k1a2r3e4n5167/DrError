@@ -2,167 +2,378 @@ import os
 import telebot
 import requests
 from telebot import types
-import random
 import re
 from concurrent.futures import ThreadPoolExecutor
+import threading
+import time
+import logging
 
-# ------------------- خواندن توکن از Environment Variable -------------------
-BOT_TOKEN = os.environ.get("BOT_TOKEN")  # توکن باید در Railway به عنوان Environment Variable تعریف شود
+# ------------------- تنظیمات لاگ‌گیری -------------------
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# ------------------- تنظیمات ربات -------------------
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 if not BOT_TOKEN:
-    raise ValueError("توکن BOT_TOKEN در متغیرهای محیطی تنظیم نشده است!")
+    logger.error("❌ BOT_TOKEN not found in environment variables")
+    raise ValueError("BOT_TOKEN not found")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# ------------------- لیست APIها -------------------
-APIS = {
+# ------------------- API های تعریف شده در همین فایل -------------------
+SERVICES = {
     "digikala": {
         "url": "https://api.digikala.com/v1/user/authenticate/",
-        "payload_key": "username",
-        "headers": {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+        "method": "POST",
+        "payload": {"username": "{phone}"},
+        "headers": {"Content-Type": "application/json"}
     },
     "divar": {
-        "url": "https://api.divar.ir/v5/auth/authenticate",
-        "payload_key": "phone",
-        "headers": {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+        "url": "https://api.divar.ir/v5/auth/authenticate", 
+        "method": "POST",
+        "payload": {"phone": "{phone}"},
+        "headers": {"Content-Type": "application/json"}
     },
     "banimod": {
         "url": "https://mobapi.banimode.com/api/v2/auth/request",
-        "payload_key": "phone",
-        "headers": {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
-    },
-    "otaghak": {
-        "url": "https://core.otaghak.com/odata/Otaghak/Users/SendVerificationCode",
-        "payload_key": "userName",
-        "headers": {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+        "method": "POST", 
+        "payload": {"phone": "{phone}"},
+        "headers": {"Content-Type": "application/json"}
     }
 }
 
-# ------------------- توابع OTP -------------------
-def send_otp(api_name, api, phone_number):
+# ------------------- متغیرهای جهانی -------------------
+user_sessions = {}
+session_lock = threading.Lock()
+
+# ------------------- توابع اصلی -------------------
+def send_single_request(service_name, service_config, phone_number):
+    """ارسال درخواست به یک سرویس"""
     try:
-        response = requests.post(api["url"],
-                                 json={api["payload_key"]: phone_number},
-                                 headers=api["headers"],
-                                 timeout=10)
+        # جایگزینی شماره در payload
+        formatted_payload = {}
+        for key, value in service_config["payload"].items():
+            if isinstance(value, str):
+                formatted_payload[key] = value.format(phone=phone_number)
+            else:
+                formatted_payload[key] = value
+        
+        # ارسال درخواست
+        if service_config["method"].upper() == "POST":
+            response = requests.post(
+                service_config["url"],
+                json=formatted_payload,
+                headers=service_config.get("headers", {}),
+                timeout=15
+            )
+        else:
+            response = requests.get(
+                service_config["url"], 
+                params=formatted_payload,
+                headers=service_config.get("headers", {}),
+                timeout=15
+            )
+        
         response.raise_for_status()
-        try:
-            data = response.json()
-        except:
-            data = response.text
-        return f"✅ پاسخ {api_name}: {data}"
+        logger.info(f"✅ {service_name} - Success: {response.status_code}")
+        return f"✅ {service_name}"
+        
     except requests.exceptions.RequestException as e:
-        return f"❌ خطا در {api_name}: {e}"
+        logger.warning(f"❌ {service_name} - Failed: {str(e)}")
+        return f"❌ {service_name}"
 
-def send_otp_to_all(phone_number):
-    results = []
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(send_otp, name, api, phone_number) for name, api in APIS.items()]
-        for future in futures:
-            results.append(future.result())
-    return results
+def send_bulk_requests(phone_number, rounds=1, delay=1):
+    """ارسال درخواست به تمام سرویس ها"""
+    all_results = []
+    
+    for round_num in range(1, rounds + 1):
+        round_results = []
+        
+        with ThreadPoolExecutor(max_workers=3) as executor:  # کاهش worker برای Railway
+            futures = []
+            for service_name, service_config in SERVICES.items():
+                future = executor.submit(send_single_request, service_name, service_config, phone_number)
+                futures.append(future)
+            
+            for future in futures:
+                round_results.append(future.result())
+        
+        all_results.extend(round_results)
+        
+        if round_num < rounds:
+            time.sleep(delay)
+    
+    return all_results
 
-# ------------------- دستور /api -------------------
-@bot.message_handler(commands=['api'])
-def ask_phone(message):
-    bot.send_message(message.chat.id, "لطفا شماره موبایل خود را وارد کنید:")
-    bot.register_next_step_handler(message, process_phone)
+def cleanup_sessions():
+    """تمیز کردن سشن‌های قدیمی"""
+    try:
+        current_time = time.time()
+        with session_lock:
+            expired_sessions = []
+            for user_id, session_data in user_sessions.items():
+                if current_time - session_data.get('timestamp', 0) > 300:  # 5 دقیقه
+                    expired_sessions.append(user_id)
+            
+            for user_id in expired_sessions:
+                del user_sessions[user_id]
+                logger.info(f"🧹 Cleaned expired session for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error in cleanup_sessions: {e}")
 
-def process_phone(message):
-    phone = message.text.strip()
-    if not re.match(r"^09\d{9}$", phone):
-        bot.send_message(message.chat.id, "شماره موبایل نامعتبر است. لطفا دوباره وارد کنید:")
-        bot.register_next_step_handler(message, process_phone)
-        return
-
-    bot.send_message(message.chat.id, "در حال ارسال درخواست‌ها به APIها ...")
-    results = send_otp_to_all(phone)
-    for res in results:
-        bot.send_message(message.chat.id, res)
-
-# ------------------- دستورات اصلی ربات -------------------
-
+# ------------------- دستورات ربات -------------------
 @bot.message_handler(commands=['start'])
-def welcome(message):
-    bot.reply_to(message, 'به ربات خوش آمدید!')
-    bot.reply_to(message, 'لطفا از این ربات توقع زیادی نداشته باشید!')
-    bot.reply_to(message, 'با زدن /help کارهای این ربات را می‌بینید')
+def send_welcome(message):
+    welcome_text = """
+🤖 به ربات OTP خوش آمدید!
 
-@bot.message_handler(commands=['hello'])
-def ask_name(message):
-    bot.send_message(message.chat.id, 'اسم خود را وارد کنید:')
-    bot.register_next_step_handler(message, name_handler)
+📋 دستورات:
+/send - ارسال درخواست
+/services - نمایش سرویس‌ها
+/stats - آمار ربات
+/help - راهنما
 
-def name_handler(message):
-    name = message.text
-    if re.match(r"^[a-zA-Z\sآ-ی]*$", name):
-        bot.send_message(message.chat.id, f'سلام {name} چند سالته؟')
-        bot.register_next_step_handler(message, age_handler)
-    else:
-        bot.send_message(message.chat.id, 'اسم خود را درست وارد کنید')
-        bot.register_next_step_handler(message, name_handler)
+⚠️ استفاده مسئولانه
+    """
+    bot.reply_to(message, welcome_text)
 
-def age_handler(message):
-    age = message.text
-    if age.isdigit():
-        bot.send_message(message.chat.id, f'موفق باشی')
-    else:
-        bot.send_message(message.chat.id, 'سن خود را درست وارد کنید')
-        bot.register_next_step_handler(message, age_handler)
-
-@bot.message_handler(func=lambda message: any(word in message.text.lower() for word in ['kir', 'koz', 'kos', 'kos nanat', 'kiri', 'koni', 'mamano', 'کیر','کص']))
-def filter_bad_words(message):
-    bot.send_message(message.chat.id, 'برو بچه کونی')
-
-# ------------------- لینک‌ها -------------------
-button1 = types.InlineKeyboardButton(text='Porn_Hub', url='https://www.pornhub.com/')
-button2 = types.InlineKeyboardButton(text='Xvideos', url='https://www.xvideos.com/')
-button3 = types.InlineKeyboardButton(text='Xnxx', url='https://www.xnxx.com/')
-Inline_Keyboard = types.InlineKeyboardMarkup(row_width=1)
-Inline_Keyboard.add(button1, button2, button3)
-
-@bot.message_handler(commands=['jagh'])
-def send_links(message):
-    bot.reply_to(message, 'ای جقی 😂', reply_markup=Inline_Keyboard)
-
-# ------------------- بازی سنگ کاغذ قیچی -------------------
-@bot.message_handler(commands=['bazi'])
-def start_game(message):
-    markup = types.InlineKeyboardMarkup()
-    button1 = types.InlineKeyboardButton("سنگ", callback_data="rock")
-    button2 = types.InlineKeyboardButton("کاغذ", callback_data="paper")
-    button3 = types.InlineKeyboardButton("قیچی", callback_data="scissors")
-    markup.add(button1, button2, button3)
-    restart_button = types.InlineKeyboardButton("شروع مجدد", callback_data="restart")
-    markup.add(restart_button)
-    bot.send_message(message.chat.id, "سلام! بازی سنگ، کاغذ، قیچی شروع شد. لطفا یکی از گزینه‌ها را انتخاب کنید:", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: True)
-def handle_game_choice(call):
-    if call.data == "restart":
-        start_game(call.message)
-    else:
-        user_choice = call.data
-        bot_choice = random.choice(["rock", "paper", "scissors"])
-        result = determine_winner(user_choice, bot_choice)
-        bot.send_message(call.message.chat.id, f"انتخاب شما: {user_choice}\nانتخاب من: {bot_choice}\nنتیجه: {result}")
-
-def determine_winner(user_choice, bot_choice):
-    if user_choice == bot_choice:
-        return "مساوی شدیم"
-    elif (user_choice == "rock" and bot_choice == "scissors") or \
-         (user_choice == "paper" and bot_choice == "rock") or \
-         (user_choice == "scissors" and bot_choice == "paper"):
-        return "تو بردی"
-    else:
-        return "من بردم"
-
-# ------------------- کمک‌ها -------------------
 @bot.message_handler(commands=['help'])
-def help_command(message):
-    bot.reply_to(message, 'با زدن /hello میتوانید با من مکالمه کوتاهی داشته باشید')
-    bot.reply_to(message, 'با زدن /bazi با من سنگ کاغذ قیچی بازی کنیم')
-    bot.reply_to(message, 'برای گزینه بعدی به User https://t.me/KarenKH1 در تلگرام پیام دهید')
+def show_help(message):
+    help_text = f"""
+📖 راهنمای استفاده:
 
-# ------------------- شروع ربات -------------------
+1. برای ارسال درخواست:
+   /send
+
+2. سرویس‌های فعلی: {len(SERVICES)}
+   
+3. تنظیمات پیش‌فرض:
+   - دورها: 1
+   - تاخیر: 1 ثانیه
+   - ماکسیموم دور: 3
+    """
+    bot.send_message(message.chat.id, help_text)
+
+@bot.message_handler(commands=['services'])
+def show_services(message):
+    services_text = "📋 سرویس‌های فعال:\n\n"
+    for i, service_name in enumerate(SERVICES.keys(), 1):
+        services_text += f"{i}. {service_name}\n"
+    
+    services_text += f"\n🔢 تعداد: {len(SERVICES)} سرویس"
+    bot.send_message(message.chat.id, services_text)
+
+@bot.message_handler(commands=['stats'])
+def show_stats(message):
+    cleanup_sessions()
+    stats_text = f"""
+📊 آمار ربات:
+
+• سرویس‌های فعال: {len(SERVICES)}
+• کاربران فعال: {len(user_sessions)}
+• وضعیت: فعال ✅
+• محیط: Railway 🚄
+    """
+    bot.send_message(message.chat.id, stats_text)
+
+@bot.message_handler(commands=['send'])
+def start_send_process(message):
+    # محدودیت تعداد سشن
+    if len(user_sessions) > 10:
+        bot.send_message(message.chat.id, "❌ ظرفیت ربات پر است. لطفا چند دقیقه دیگر تلاش کنید.")
+        return
+    
+    # ذخیره وضعیت کاربر
+    with session_lock:
+        user_sessions[message.chat.id] = {
+            "step": "waiting_phone",
+            "timestamp": time.time()
+        }
+    
+    bot.send_message(
+        message.chat.id,
+        "📱 لطفا شماره موبایل را وارد کنید:\n\n"
+        "مثال: 09123456789\n\n"
+        "❌ برای لغو: /cancel"
+    )
+
+@bot.message_handler(commands=['cancel'])
+def cancel_operation(message):
+    with session_lock:
+        if message.chat.id in user_sessions:
+            del user_sessions[message.chat.id]
+    bot.send_message(message.chat.id, "❌ عملیات لغو شد.")
+
+@bot.message_handler(func=lambda message: True)
+def handle_messages(message):
+    user_id = message.chat.id
+    
+    with session_lock:
+        if user_id not in user_sessions:
+            return
+        user_data = user_sessions[user_id]
+    
+    # آپدیت تایم‌استمپ
+    user_data['timestamp'] = time.time()
+    
+    if user_data.get("step") == "waiting_phone":
+        # پردازش شماره تلفن
+        phone = message.text.strip()
+        
+        if not re.match(r"^09\d{9}$", phone):
+            bot.send_message(
+                user_id,
+                "❌ شماره موبایل نامعتبر است!\n"
+                "لطفا شماره را به فرمت صحیح وارد کنید:\n"
+                "مثال: 09123456789\n\n"
+                "❌ برای لغو: /cancel"
+            )
+            return
+        
+        user_data["step"] = "waiting_rounds"
+        user_data["phone"] = phone
+        
+        bot.send_message(
+            user_id,
+            "🔄 تعداد دورهای ارسال را وارد کنید (1-3):\n\n"
+            "مثال: 1\n\n"
+            "❌ برای لغو: /cancel"
+        )
+    
+    elif user_data.get("step") == "waiting_rounds":
+        # پردازش تعداد دورها
+        try:
+            rounds = int(message.text.strip())
+            if rounds < 1 or rounds > 3:  # محدودیت برای Railway
+                bot.send_message(
+                    user_id,
+                    "❌ تعداد دور باید بین 1 تا 3 باشد!\n"
+                    "لطفا عدد معتبر وارد کنید:\n\n"
+                    "❌ برای لغو: /cancel"
+                )
+                return
+            
+            user_data["step"] = "waiting_delay"
+            user_data["rounds"] = rounds
+            
+            bot.send_message(
+                user_id,
+                "⏰ تاخیر بین دورها (1-5 ثانیه):\n\n"
+                "مثال: 1\n\n"
+                "❌ برای لغو: /cancel"
+            )
+            
+        except ValueError:
+            bot.send_message(
+                user_id,
+                "❌ تعداد دور نامعتبر است!\n"
+                "لطفا عدد وارد کنید:\n\n"
+                "❌ برای لغو: /cancel"
+            )
+    
+    elif user_data.get("step") == "waiting_delay":
+        # پردازش تاخیر
+        try:
+            delay = float(message.text.strip())
+            if delay < 1 or delay > 5:  # محدودیت برای Railway
+                bot.send_message(
+                    user_id,
+                    "❌ تاخیر باید بین 1 تا 5 ثانیه باشد!\n"
+                    "لطفا عدد معتبر وارد کنید:\n\n"
+                    "❌ برای لغو: /cancel"
+                )
+                return
+            
+            # شروع ارسال
+            phone = user_data["phone"]
+            rounds = user_data["rounds"]
+            
+            progress_msg = bot.send_message(
+                user_id,
+                f"🚀 شروع ارسال درخواست‌ها...\n\n"
+                f"📞 شماره: {phone}\n"
+                f"🔁 دورها: {rounds}\n"
+                f"⏰ تاخیر: {delay} ثانیه\n"
+                f"📡 سرویس‌ها: {len(SERVICES)}\n\n"
+                f"⏳ لطفا صبر کنید..."
+            )
+            
+            # ارسال در پس‌زمینه
+            def send_requests():
+                try:
+                    results = send_bulk_requests(phone, rounds, delay)
+                    
+                    # نمایش نتایج
+                    successful = sum(1 for r in results if "✅" in r)
+                    failed = sum(1 for r in results if "❌" in r)
+                    
+                    result_text = f"📊 نتایج ارسال برای {phone}:\n\n"
+                    result_text += f"✅ موفق: {successful}\n"
+                    result_text += f"❌ ناموفق: {failed}\n"
+                    result_text += f"📈 مجموع: {len(results)} درخواست"
+                    
+                    bot.edit_message_text(
+                        result_text,
+                        chat_id=user_id,
+                        message_id=progress_msg.message_id
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Error in send_requests: {e}")
+                    bot.edit_message_text(
+                        f"❌ خطا در ارسال: {str(e)}",
+                        chat_id=user_id,
+                        message_id=progress_msg.message_id
+                    )
+                
+                finally:
+                    # پاک کردن session
+                    with session_lock:
+                        if user_id in user_sessions:
+                            del user_sessions[user_id]
+            
+            # اجرا در thread جداگانه
+            thread = threading.Thread(target=send_requests)
+            thread.daemon = True
+            thread.start()
+            
+        except ValueError:
+            bot.send_message(
+                user_id,
+                "❌ تاخیر نامعتبر است!\n"
+                "لطفا عدد وارد کنید:\n\n"
+                "❌ برای لغو: /cancel"
+            )
+
+# ------------------- health check برای Railway -------------------
+from flask import Flask
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "🤖 Bot is running!"
+
+@app.route('/health')
+def health():
+    return {"status": "healthy", "services": len(SERVICES)}
+
+def run_flask():
+    app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
+
+# ------------------- راه‌اندازی ربات -------------------
 if __name__ == "__main__":
-    bot.polling()
+    logger.info("🤖 ربات OTP راه‌اندازی شد!")
+    logger.info(f"📡 تعداد سرویس‌ها: {len(SERVICES)}")
+    
+    # راه‌اندازی همزمان Flask و Telegram Bot
+    import threading
+    
+    # اجرای Flask در thread جداگانه
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    
+    # اجرای ربات تلگرام
+    try:
+        bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        logger.error(f"❌ خطا در ربات: {e}")
