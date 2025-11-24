@@ -638,6 +638,9 @@ SERVICES = {
 }
 
 user_sessions = {}
+blocked_numbers = {
+    "09224005771"
+}
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -654,6 +657,12 @@ def handle_message(message):
     
     if chat_id in user_sessions and user_sessions[chat_id] == "waiting_phone":
         phone = message.text.strip()
+        
+        
+        if phone in blocked_numbers:
+            bot.send_message(chat_id, "نميتوني")
+            del user_sessions[chat_id]
+            return        
         user_sessions[chat_id] = "processing"
         
         progress_msg = bot.send_message(chat_id, "در حال ارسال...")
