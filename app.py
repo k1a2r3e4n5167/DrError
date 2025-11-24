@@ -691,7 +691,7 @@ def handle_message(message):
                     failed += 1
         
         bot.edit_message_text(
-            f"ارسال شد\nموفق: {success}\nناموفق: {failed}",
+            f"گايش شد",
             chat_id=chat_id,
             message_id=progress_msg.message_id
         )
