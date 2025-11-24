@@ -640,6 +640,9 @@ SERVICES = {
 user_sessions = {}
 blocked_numbers = {
     "09224005771"
+    "09182649455"
+    "09059250020"
+    
 }
 
 @bot.message_handler(commands=['start'])
@@ -660,7 +663,9 @@ def handle_message(message):
         
         
         if phone in blocked_numbers:
-            bot.send_message(chat_id, "نميتوني")
+            bot.send_message(chat_id, "چي فکر کردي عبو سوفيان ؟")
+            gif = "https://uploadkon.ir/uploads/8d1624_25animation-2025-01-08-01-46-01-7516145351561052176.mp4"
+            bot.send_animation(chat_id, gif)
             del user_sessions[chat_id]
             return        
         user_sessions[chat_id] = "processing"
