@@ -4,6 +4,8 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib3
 from flask import Flask
+from telebot import types
+
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -649,12 +651,91 @@ blocked_numbers = {
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(message.chat.id, "به بمبر دکتر ERROR خوش اومدي ")
+    bot.send_message(
+        message.chat.id,
+        "درود خوش آمديد",
+        reply_markup=main_menu()
+    )
+
+
+def main_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(
+        "💣 بمبر",
+        "✂️ سنگ کاغذ قیچی"
+    )
+    return markup
+
+
+@bot.message_handler(func=lambda message: message.text == "💣 بمبر")
+def bomb_button(message):
+    bomb(message)  # ← همون تابع بمبر خودت
+
+
 
 @bot.message_handler(commands=['bomb'])
 def bomb(message):
     user_sessions[message.chat.id] = "waiting_phone"
     bot.send_message(message.chat.id, "شماره بده بيبي تا بگامش:")
+
+-------------
+@bot.message_handler(func=lambda message: message.text == "✂️ سنگ کاغذ قیچی")
+def start_game(message):
+    markup = types.InlineKeyboardMarkup()
+    button1 = types.InlineKeyboardButton("سنگ", callback_data="rock")
+    button2 = types.InlineKeyboardButton("کاغذ", callback_data="paper")
+    button3 = types.InlineKeyboardButton("قیچی", callback_data="scissors")
+    markup.add(button1, button2, button3)
+
+    restart_button = types.InlineKeyboardButton("شروع مجدد", callback_data="restart")
+    markup.add(restart_button)
+
+    bot.send_message(message.chat.id, "سلام! بازی سنگ، کاغذ، قیچی شروع شد. انتخاب خود را بزنید:", reply_markup=markup)
+
+# هندلر انتخاب کاربر
+@bot.callback_query_handler(func=lambda call: True)
+def handle_game_choice(call):
+    if call.data == "restart":
+        start_game(call.message)
+        return
+
+    user_choice = call.data
+    bot_choice = random.choice(["rock", "paper", "scissors"])
+    result = determine_winner(user_choice, bot_choice)
+
+    bot.send_photo(call.message.chat.id, get_choice_image(user_choice), caption=f"انتخاب شما: {user_choice}")
+    bot.send_photo(call.message.chat.id, get_choice_image(bot_choice), caption=f"انتخاب من: {bot_choice}")
+    bot.send_message(call.message.chat.id, result)
+
+    # دکمه شروع مجدد
+    markup = types.InlineKeyboardMarkup()
+    restart_button = types.InlineKeyboardButton("شروع مجدد", callback_data="restart")
+    markup.add(restart_button)
+    bot.send_message(call.message.chat.id, "میخوای دوباره بازی کنیم؟", reply_markup=markup)
+
+def determine_winner(user_choice, bot_choice):
+    if user_choice == bot_choice:
+        return "مساوی شدیم!"
+    elif (user_choice == "rock" and bot_choice == "scissors") or \
+         (user_choice == "paper" and bot_choice == "rock") or \
+         (user_choice == "scissors" and bot_choice == "paper"):
+        return "تو بردی 🎉"
+    else:
+        return "من بردم 😎"
+
+def get_choice_image(choice):
+    if choice == "rock":
+        return "https://media.istockphoto.com/id/2161977156/photo/stone-image-on-a-white-background.jpg"
+    elif choice == "paper":
+        return "https://media.istockphoto.com/id/1501496073/photo/blank-a4-paper-on-white-background.jpg"
+    elif choice == "scissors":
+        return "http://t3.gstatic.com/licensed-image?q=tbn:ANd9GcRuoTRO-VCcFSDxLxO4e8Ifvld1w5FbOJSibhdkWsMOoU_hfh_IzJLWeRj5zWwjhu_GwgmAbVGFC238AO_HSkE"
+
+
+
+
+
+
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
