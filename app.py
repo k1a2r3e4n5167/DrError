@@ -678,7 +678,7 @@ def bomb(message):
     user_sessions[message.chat.id] = "waiting_phone"
     bot.send_message(message.chat.id, "شماره بده بيبي تا بگامش:")
 
--------------
+#-----------
 @bot.message_handler(func=lambda message: message.text == "✂️ سنگ کاغذ قیچی")
 def start_game(message):
     markup = types.InlineKeyboardMarkup()
