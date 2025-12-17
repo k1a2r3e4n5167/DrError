@@ -662,7 +662,9 @@ def start(message):
 
 def main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("💣 بمبر", "پشتيباني")
+    markup.row("💣 بمبر")
+    markup.row("بزودي")
+    markup.row("پشتيباني")
     return markup
 
 # ================== BOMBER (دست نخورده) ==================
@@ -688,7 +690,13 @@ def support(message):
         f"{SUPPORT_USERNAME}\n\n"
         f"⏰ پاسخگويي در اسرع وقت"
     )
-
+# ==================soon==================
+@bot.message_handler (func=lambda message: message.text == "بزودي")
+def soon (message) :
+    bot.send_message(
+        message.chat.id,
+        "عامو نوشتم بزودي 😒"
+    )
 # ================== MESSAGE HANDLER (دست نخورده) ==================
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
