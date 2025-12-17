@@ -657,7 +657,7 @@ def start(message):
     bot.send_message(
         message.chat.id,
         f"درود به Drsbomber خوش آمديد\n\n"
-        f"⚠️ توجه ⚠️\n\n"
+        f"                            ⚠️ توجه ⚠️\n\n"
         f"هرگونه استفاده از اين ربات بر عهده خود شماست.\n"
         f"توسعه‌دهنده هیچ مسئولیتی در قبال سوءاستفاده یا مشکلات قانونی ندارد.",
         reply_markup=main_menu()
