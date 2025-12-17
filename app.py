@@ -660,7 +660,7 @@ def start(message):
 
 def main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("💣 بمبر", "✂️ سنگ کاغذ قیچی")
+    markup.add("💣 بمبر", "پشتيباني")
     return markup
 
 # ================== BOMBER (دست نخورده) ==================
@@ -671,80 +671,21 @@ def bomb_button(message):
 @bot.message_handler(commands=['bomb'])
 def bomb(message):
     user_sessions[message.chat.id] = "waiting_phone"
-    bot.send_message(message.chat.id, "شماره بده بيبي تا بگامش:")
+    bot.send_message(message.chat.id, "شماره با 09:")
 
-# ================== ROCK PAPER SCISSORS (FIXED) ==================
-@bot.message_handler(func=lambda message: message.text == "✂️ سنگ کاغذ قیچی")
-def start_game(message):
-    markup = types.InlineKeyboardMarkup(row_width=3)
-    markup.add(
-        types.InlineKeyboardButton("سنگ", callback_data="rps_rock"),
-        types.InlineKeyboardButton("کاغذ", callback_data="rps_paper"),
-        types.InlineKeyboardButton("قیچی", callback_data="rps_scissors")
-    )
-    markup.add(
-        types.InlineKeyboardButton("شروع مجدد", callback_data="rps_restart")
-    )
+# ================== پشتيباني ==================
 
+SUPPORT_USERNAME = "@KarenKH1"  # آیدی خودت
+
+@bot.message_handler(func=lambda message: message.text == "پشتيباني")
+def support(message):
     bot.send_message(
         message.chat.id,
-        "🎮 بازی سنگ، کاغذ، قیچی\nانتخاب کن:",
-        reply_markup=markup
+        f"📞 پشتيباني ربات\n\n"
+        f"براي دادن نظرات و ايده هاي خود و مشکلات خود به اين آيدي پيغام دهيد :\n"
+        f"{SUPPORT_USERNAME}\n\n"
+        f"⏰ پاسخگويي در اسرع وقت"
     )
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("rps_"))
-def handle_rps(call):
-    bot.answer_callback_query(call.id)
-
-    if call.data == "rps_restart":
-        start_game(call.message)
-        return
-
-    user_choice = call.data.replace("rps_", "")
-    bot_choice = random.choice(["rock", "paper", "scissors"])
-
-    result = determine_winner(user_choice, bot_choice)
-
-    bot.send_photo(
-        call.message.chat.id,
-        get_choice_image(user_choice),
-        caption=f"انتخاب شما: {user_choice}"
-    )
-
-    bot.send_photo(
-        call.message.chat.id,
-        get_choice_image(bot_choice),
-        caption=f"انتخاب من: {bot_choice}"
-    )
-
-    markup = types.InlineKeyboardMarkup()
-    markup.add(
-        types.InlineKeyboardButton("شروع مجدد", callback_data="rps_restart")
-    )
-
-    bot.send_message(
-        call.message.chat.id,
-        result,
-        reply_markup=markup
-    )
-
-def determine_winner(user_choice, bot_choice):
-    if user_choice == bot_choice:
-        return "مساوی شدیم!"
-    elif (user_choice == "rock" and bot_choice == "scissors") or \
-         (user_choice == "paper" and bot_choice == "rock") or \
-         (user_choice == "scissors" and bot_choice == "paper"):
-        return "تو بردی 🎉"
-    else:
-        return "من بردم 😎"
-
-def get_choice_image(choice):
-    if choice == "rock":
-        return "https://media.istockphoto.com/id/2161977156/photo/stone-image-on-a-white-background.jpg"
-    elif choice == "paper":
-        return "https://media.istockphoto.com/id/1501496073/photo/blank-a4-paper-on-white-background.jpg"
-    elif choice == "scissors":
-        return "http://t3.gstatic.com/licensed-image?q=tbn:ANd9GcRuoTRO-VCcFSDxLxO4e8Ifvld1w5FbOJSibhdkWsMOoU_hfh_IzJLWeRj5zWwjhu_GwgmAbVGFC238AO_HSkE"
 
 # ================== MESSAGE HANDLER (دست نخورده) ==================
 @bot.message_handler(func=lambda message: True)
@@ -755,7 +696,7 @@ def handle_message(message):
         phone = message.text.strip()
 
         if phone in blocked_numbers:
-            bot.send_message(chat_id, "چي فکر کردي عبو سوفيان ؟")
+            bot.send_message(chat_id, "به خودي که نميشه بزني گلم 🤨")
             gif = "https://uploadkon.ir/uploads/8d1624_25animation-2025-01-08-01-46-01-7516145351561052176.mp4"
             bot.send_animation(chat_id, gif)
             del user_sessions[chat_id]
@@ -770,7 +711,7 @@ def handle_message(message):
                 pass
 
         bot.edit_message_text(
-            "گايش شد",
+            "انجام شد",
             chat_id=chat_id,
             message_id=progress_msg.message_id
         )
