@@ -14,6 +14,26 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
+# بعد از خط 16 (app = Flask(__name__)) اینو اضافه کن:
+
+def determine_winner(user_choice, bot_choice):
+    if user_choice == bot_choice:
+        return "مساوی شدیم!"
+    elif (user_choice == "rock" and bot_choice == "scissors") or \
+         (user_choice == "paper" and bot_choice == "rock") or \
+         (user_choice == "scissors" and bot_choice == "paper"):
+        return "تو بردی 🎉"
+    else:
+        return "من بردم 😎"
+
+def get_choice_image(choice):
+    if choice == "rock":
+        return "https://media.istockphoto.com/id/2161977156/photo/stone-image-on-a-white-background.jpg"
+    elif choice == "paper":
+        return "https://media.istockphoto.com/id/1501496073/photo/blank-a4-paper-on-white-background.jpg"
+    elif choice == "scissors":
+        return "http://t3.gstatic.com/licensed-image?q=tbn:ANd9GcRuoTRO-VCcFSDxLxO4e8Ifvld1w5FbOJSibhdkWsMOoU_hfh_IzJLWeRj5zWwjhu_GwgmAbVGFC238AO_HSkE"
+
 SERVICES = {
     'snapp': lambda num: requests.post(
         url="https://app.snapp.taxi/api/api-passenger-oauth/v2/otp",
@@ -713,28 +733,6 @@ def handle_game_choice(call):
     restart_button = types.InlineKeyboardButton("شروع مجدد", callback_data="restart")
     markup.add(restart_button)
     bot.send_message(call.message.chat.id, "میخوای دوباره بازی کنیم؟", reply_markup=markup)
-
-def determine_winner(user_choice, bot_choice):
-    if user_choice == bot_choice:
-        return "مساوی شدیم!"
-    elif (user_choice == "rock" and bot_choice == "scissors") or \
-         (user_choice == "paper" and bot_choice == "rock") or \
-         (user_choice == "scissors" and bot_choice == "paper"):
-        return "تو بردی 🎉"
-    else:
-        return "من بردم 😎"
-
-def get_choice_image(choice):
-    if choice == "rock":
-        return "https://media.istockphoto.com/id/2161977156/photo/stone-image-on-a-white-background.jpg"
-    elif choice == "paper":
-        return "https://media.istockphoto.com/id/1501496073/photo/blank-a4-paper-on-white-background.jpg"
-    elif choice == "scissors":
-        return "http://t3.gstatic.com/licensed-image?q=tbn:ANd9GcRuoTRO-VCcFSDxLxO4e8Ifvld1w5FbOJSibhdkWsMOoU_hfh_IzJLWeRj5zWwjhu_GwgmAbVGFC238AO_HSkE"
-
-
-
-
 
 
 
