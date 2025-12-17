@@ -6,6 +6,8 @@ import urllib3
 from flask import Flask
 from telebot import types
 import random
+import re
+
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -694,6 +696,18 @@ def handle_message(message):
 
     if chat_id in user_sessions and user_sessions[chat_id] == "waiting_phone":
         phone = message.text.strip()
+
+        # اعتبارسنجی شماره موبایل
+        if not re.fullmatch(r"09\d{9}", phone):
+            bot.send_message(
+            chat_id,
+            "❌ شماره اشتباهه\n\n"
+            "📌 فرمت صحيح:\n"
+            "09xxxxxxxxx\n"
+            "🔢 فقط عدد و ۱۱ رقم"
+            )
+            return
+
 
         if phone in blocked_numbers:
             bot.send_message(chat_id, "به خودي که نميشه بزني گلم 🤨")
