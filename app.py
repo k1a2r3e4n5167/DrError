@@ -665,9 +665,9 @@ def start(message):
 
 def main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row("💣 بمبر")
+    markup.row("💣بمبر💣")
     markup.row("بزودي")
-    markup.row("پشتيباني")
+    markup.row("☎️پشتيباني☎️")
     return markup
 
 # ================== BOMBER (دست نخورده) ==================
