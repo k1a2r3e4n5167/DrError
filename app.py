@@ -651,6 +651,11 @@ blocked_numbers = {
     "09189834173"
 }
 
+# ================== AI CONFIG ==================
+AI_API_URL = "https://API_URL_HERE/chat"   # بعداً عوض می‌کنی
+AI_API_KEY = "API_KEY_HERE"
+
+
 # ================== START ==================
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -666,7 +671,7 @@ def start(message):
 def main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("💣بمبر💣")
-    markup.row("بزودي")
+    markup.row("🤖بزودي🤖")
     markup.row("☎️پشتيباني☎️")
     return markup
 
@@ -684,7 +689,7 @@ def bomb(message):
 
 SUPPORT_USERNAME = "@KarenKH1"  # آیدی خودت
 
-@bot.message_handler(func=lambda message: message.text == "☎️پشتيباني☎")
+@bot.message_handler(func=lambda message: message.text == "☎️پشتيباني☎️")
 def support(message):
     bot.send_message(
         message.chat.id,
@@ -693,37 +698,93 @@ def support(message):
         f"{SUPPORT_USERNAME}\n\n"
         f"⏰ پاسخگويي در اسرع وقت"
     )
+# ================== AI FUNCTION ==================
+def ask_ai(prompt):
+    headers = {
+        "Authorization": f"Bearer {AI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "message": prompt
+    }
+
+    try:
+        r = requests.post(AI_API_URL, json=data, headers=headers, timeout=30)
+        if r.status_code == 200:
+            return r.json().get("reply", "❌ پاسخی دریافت نشد")
+        else:
+            return "⚠️ خطا در ارتباط با هوش مصنوعی"
+    except:
+        return "⚠️ سرور هوش مصنوعی در دسترس نیست"
+
 # ==================soon==================
-@bot.message_handler (func=lambda message: message.text == "بزودي")
-def soon (message) :
+
+# ==================soon==================
+@bot.message_handler(func=lambda message: message.text == "بزودي")
+def soon(message):
     bot.send_message(
         message.chat.id,
         "عامو نوشتم بزودي 😒"
     )
+
+@bot.message_handler(func=lambda message: message.text == "🤖 هوش مصنوعی🤖")
+def ai_start(message):
+    user_sessions[message.chat.id] = "ai_chat"
+    bot.send_message(
+        message.chat.id,
+        "🤖 *هوش مصنوعی فعال شد*\n\n"
+        "سوالت رو بنویس ✍️\n"
+        "برای خروج بنویس: 🔙 بازگشت",
+        parse_mode="Markdown"
+    )
+
 # ================== MESSAGE HANDLER (دست نخورده) ==================
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
+    text = message.text.strip()
 
-    if chat_id in user_sessions and user_sessions[chat_id] == "waiting_phone":
-        phone = message.text.strip()
-
-        # اعتبارسنجی شماره موبایل
-        if not re.fullmatch(r"09\d{9}", phone):
+    # ===== AI CHAT =====
+    if chat_id in user_sessions and user_sessions[chat_id] == "ai_chat":
+        if text == "🔙 بازگشت":
+            del user_sessions[chat_id]
             bot.send_message(
-            chat_id,
-            "❌ شماره اشتباهه\n\n"
-            "📌 فرمت صحيح:\n"
-            "09xxxxxxxxx\n"
-            "🔢 فقط عدد و ۱۱ رقم"
+                chat_id,
+                "🔙 برگشتی به منوی اصلی",
+                reply_markup=main_menu()
             )
             return
 
+        bot.send_chat_action(chat_id, "typing")
+        answer = ask_ai(text)
+
+        bot.send_message(
+            chat_id,
+            f"🤖 پاسخ هوش مصنوعی:\n\n{answer}"
+        )
+        return
+
+    # ===== BOMBER =====
+    if chat_id in user_sessions and user_sessions[chat_id] == "waiting_phone":
+        phone = text
+
+        if not re.fullmatch(r"09\d{9}", phone):
+            bot.send_message(
+                chat_id,
+                "❌ شماره اشتباهه\n\n"
+                "📌 فرمت صحيح:\n"
+                "09xxxxxxxxx\n"
+                "🔢 فقط عدد و ۱۱ رقم"
+            )
+            return
 
         if phone in blocked_numbers:
             bot.send_message(chat_id, "به خودي که نميشه بزني گلم 🤨")
-            gif = "https://uploadkon.ir/uploads/8d1624_25animation-2025-01-08-01-46-01-7516145351561052176.mp4"
-            bot.send_animation(chat_id, gif)
+            bot.send_animation(
+                chat_id,
+                "https://uploadkon.ir/uploads/8d1624_25animation-2025-01-08-01-46-01-7516145351561052176.mp4"
+            )
             del user_sessions[chat_id]
             return
 
@@ -736,7 +797,7 @@ def handle_message(message):
                 pass
 
         bot.edit_message_text(
-            "انجام شد",
+            "انجام شد ✅",
             chat_id=chat_id,
             message_id=progress_msg.message_id
         )
