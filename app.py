@@ -721,7 +721,7 @@ def ask_ai(prompt):
 # ==================soon==================
 
 # ==================soon==================
-@bot.message_handler(func=lambda message: message.text == "بزودي")
+@bot.message_handler(func=lambda message: message.text == "🤖بزودي🤖")
 def soon(message):
     bot.send_message(
         message.chat.id,
