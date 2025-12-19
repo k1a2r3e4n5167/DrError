@@ -671,7 +671,7 @@ def main_menu():
     return markup
 
 # ================== BOMBER (دست نخورده) ==================
-@bot.message_handler(func=lambda message: message.text == "💣 بمبر")
+@bot.message_handler(func=lambda message: message.text == "💣بمبر💣")
 def bomb_button(message):
     bomb(message)
 
@@ -684,7 +684,7 @@ def bomb(message):
 
 SUPPORT_USERNAME = "@KarenKH1"  # آیدی خودت
 
-@bot.message_handler(func=lambda message: message.text == "پشتيباني")
+@bot.message_handler(func=lambda message: message.text == "☎️پشتيباني☎")
 def support(message):
     bot.send_message(
         message.chat.id,
