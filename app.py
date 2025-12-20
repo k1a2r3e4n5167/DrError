@@ -706,30 +706,36 @@ def ask_ai(prompt):
     }
 
     data = {
-        "model": "deepseek-chat",
+        "model": "deepseek/deepseek-chat",  # برای OpenRouter
         "messages": [
-            {
-                "role": "system",
-                "content": "تو یک دستیار فارسی هستی، پاسخ‌ها مفید، جمع‌وجور و با ایموجی بده."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        "temperature": 0.7
+            {"role": "user", "content": prompt}
+        ]
     }
 
     try:
-        r = requests.post(AI_API_URL, json=data, headers=headers, timeout=30)
+        r = requests.post(
+            AI_API_URL,
+            json=data,
+            headers=headers,
+            timeout=30
+        )
 
-        if r.status_code == 200:
-            return r.json()["choices"][0]["message"]["content"]
-        else:
-            return "⚠️ خطا در پاسخ هوش مصنوعی"
+        # 🔥 اینجا دیباگ واقعی
+        debug_text = (
+            f"🔍 AI DEBUG\n\n"
+            f"Status: {r.status_code}\n\n"
+            f"Response:\n{r.text[:3000]}"
+        )
+
+        if r.status_code != 200:
+            return debug_text
+
+        js = r.json()
+
+        return js["choices"][0]["message"]["content"]
 
     except Exception as e:
-        return "⚠️ سرور هوش مصنوعی در دسترس نیست"
+        return f"💥 EXCEPTION:\n{str(e)}"
 
 # ==================soon==================
 
