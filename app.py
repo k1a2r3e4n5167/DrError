@@ -706,7 +706,8 @@ def ask_ai(prompt):
     }
 
     data = {
-        "model": "gpt-4o-mini",  # مدل رایگان OpenRouter
+        "model": "openai/gpt-oss-20b:free"
+,  # مدل رایگان OpenRouter
         "messages": [{"role": "user", "content": prompt}]
     }
 
