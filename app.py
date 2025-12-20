@@ -652,8 +652,8 @@ blocked_numbers = {
 }
 
 # ================== AI CONFIG ==================
-AI_API_URL = "https://api.deepseek.com/v1/chat/completions"
-AI_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+AI_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+AI_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
 
 # ================== START ==================
