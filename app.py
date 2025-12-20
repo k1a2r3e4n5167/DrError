@@ -706,10 +706,8 @@ def ask_ai(prompt):
     }
 
     data = {
-        "model": "deepseek/deepseek-chat",  # برای OpenRouter
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
+        "model": "gpt-4o-mini",  # مدل رایگان OpenRouter
+        "messages": [{"role": "user", "content": prompt}]
     }
 
     try:
@@ -720,22 +718,24 @@ def ask_ai(prompt):
             timeout=30
         )
 
-        # 🔥 اینجا دیباگ واقعی
+        # 🔍 دیباگ کامل
         debug_text = (
             f"🔍 AI DEBUG\n\n"
-            f"Status: {r.status_code}\n\n"
-            f"Response:\n{r.text[:3000]}"
+            f"Status Code: {r.status_code}\n\n"
+            f"Response:\n{r.text[:3000]}"  # فقط 3000 کاراکتر اول برای جلوگیری از طولانی شدن
         )
 
         if r.status_code != 200:
+            # اگر خطا بود، متن دیباگ رو برگردون
             return debug_text
 
         js = r.json()
-
         return js["choices"][0]["message"]["content"]
 
     except Exception as e:
+        # اگر خطای شبکه یا غیره بود
         return f"💥 EXCEPTION:\n{str(e)}"
+
 
 # ==================soon==================
 
