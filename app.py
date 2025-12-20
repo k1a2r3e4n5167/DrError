@@ -673,6 +673,7 @@ def main_menu():
     markup.row("💣بمبر💣")
     markup.row("🤖 هوش مصنوعی🤖")
     markup.row("☎️پشتيباني☎️")
+    markup.row("بزودي")
     return markup
 
 # ================== BOMBER (دست نخورده) ==================
@@ -705,55 +706,64 @@ def ask_ai(prompt):
         "Content-Type": "application/json"
     }
 
+    # بررسی بی‌احترامی (لیست کلمات نمونه، می‌تونی گسترش بدی)
+    rude_words = ["idiot", "stupid", "moron", "احمق", "خفه شو", "کير", "کوني", "کصخل", "حيوان", "کص"]
+
+    # اگر کاربر بی‌احترامی کرد، پاسخ با فحش
+    if any(word in prompt.lower() for word in rude_words):
+        return "لال بمير انسان 🖕"
+
     data = {
-        "model": "openai/gpt-oss-20b:free"
-,  # مدل رایگان OpenRouter
-        "messages": [{"role": "user", "content": prompt}]
+        "model": "openai/gpt-oss-20b:free",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7,
+        "max_tokens": 150
     }
 
     try:
-        r = requests.post(
-            AI_API_URL,
-            json=data,
-            headers=headers,
-            timeout=30
-        )
+        r = requests.post(AI_API_URL, json=data, headers=headers, timeout=30)
 
-        # 🔍 دیباگ کامل
-        debug_text = (
-            f"🔍 AI DEBUG\n\n"
-            f"Status Code: {r.status_code}\n\n"
-            f"Response:\n{r.text[:3000]}"  # فقط 3000 کاراکتر اول برای جلوگیری از طولانی شدن
-        )
-
+        debug_text = f"🔍 AI DEBUG\n\nStatus Code: {r.status_code}\n\nResponse:\n{r.text[:3000]}"
         if r.status_code != 200:
-            # اگر خطا بود، متن دیباگ رو برگردون
             return debug_text
 
         js = r.json()
-        return js["choices"][0]["message"]["content"]
+        answer = js["choices"][0]["message"]["content"]
+
+        # اضافه کردن ایموجی‌ها بر اساس حس جواب
+        answer_lower = answer.lower()
+        if any(w in answer_lower for w in ["love", "happy", "great", "good"]):
+            emoji = "😄"
+        elif any(w in answer_lower for w in ["sad", "unhappy", "sorry", "bad"]):
+            emoji = "😢"
+        elif any(w in answer_lower for w in ["warning", "careful", "caution"]):
+            emoji = "⚠️"
+        elif any(w in answer_lower for w in ["!","?"]):
+            emoji = "🤖"
+        else:
+            emoji = "💬"
+
+        return f"{emoji} {answer}"
 
     except Exception as e:
-        # اگر خطای شبکه یا غیره بود
         return f"💥 EXCEPTION:\n{str(e)}"
 
 
 # ==================soon==================
-
-# ==================soon==================
-@bot.message_handler(func=lambda message: message.text == "🤖بزودي🤖")
+@bot.message_handler(func=lambda message: message.text == "بزودي")
 def soon(message):
     bot.send_message(
         message.chat.id,
         "عامو نوشتم بزودي 😒"
     )
-
+#=============================AI======================================
 @bot.message_handler(func=lambda message: message.text == "🤖 هوش مصنوعی🤖")
 def ai_start(message):
     user_sessions[message.chat.id] = "ai_chat"
     bot.send_message(
         message.chat.id,
         "🤖 *هوش مصنوعی فعال شد*\n\n"
+        "⚠توقع زيادي نداشته باش اين مدل فقط براي دسترسي راحت تر ساخته شده⚠ \n\n"
         "سوالت رو بنویس ✍️\n"
         "برای خروج بنویس: 🔙 بازگشت",
         parse_mode="Markdown"
