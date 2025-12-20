@@ -652,8 +652,8 @@ blocked_numbers = {
 }
 
 # ================== AI CONFIG ==================
-AI_API_URL = "https://API_URL_HERE/chat"   # بعداً عوض می‌کنی
-AI_API_KEY = "API_KEY_HERE"
+AI_API_URL = "https://api.deepseek.com/v1/chat/completions"
+AI_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 
 
 # ================== START ==================
@@ -671,7 +671,7 @@ def start(message):
 def main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("💣بمبر💣")
-    markup.row("🤖بزودي🤖")
+    markup.row("🤖 هوش مصنوعی🤖")
     markup.row("☎️پشتيباني☎️")
     return markup
 
@@ -706,16 +706,29 @@ def ask_ai(prompt):
     }
 
     data = {
-        "message": prompt
+        "model": "deepseek-chat",
+        "messages": [
+            {
+                "role": "system",
+                "content": "تو یک دستیار فارسی هستی، پاسخ‌ها مفید، جمع‌وجور و با ایموجی بده."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "temperature": 0.7
     }
 
     try:
         r = requests.post(AI_API_URL, json=data, headers=headers, timeout=30)
+
         if r.status_code == 200:
-            return r.json().get("reply", "❌ پاسخی دریافت نشد")
+            return r.json()["choices"][0]["message"]["content"]
         else:
-            return "⚠️ خطا در ارتباط با هوش مصنوعی"
-    except:
+            return "⚠️ خطا در پاسخ هوش مصنوعی"
+
+    except Exception as e:
         return "⚠️ سرور هوش مصنوعی در دسترس نیست"
 
 # ==================soon==================
