@@ -722,7 +722,7 @@ def ask_ai(prompt):
         
 
     data = {
-        "model": "meta-llama/Llama-3.2-3B-Instruct:free",
+        "model": "meta-llama/Llama-3.3-70B-Instruct:free",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
