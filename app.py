@@ -706,47 +706,46 @@ def ask_ai(prompt):
         "Content-Type": "application/json"
     }
 
-    # بررسی بی‌احترامی (لیست کلمات نمونه، می‌تونی گسترش بدی)
-    rude_words = ["idiot", "stupid", "moron", "احمق", "خفه شو", "کير", "کوني", "کصخل", "حيوان", "کص"]
-
-    # اگر کاربر بی‌احترامی کرد، پاسخ با فحش
-    if any(word in prompt.lower() for word in rude_words):
-        return "لال بمير انسان 🖕"
+    system_prompt = (
+        "تو یک هوش مصنوعی فارسی، باهوش، خلاق و زرنگ هستی 🤖🔥\n"
+        "قوانین رفتارت:\n"
+        "1️⃣ پاسخ‌ها فارسی باشن\n"
+        "2️⃣ نه خیلی کوتاه، نه خیلی طولانی (متوسط)\n"
+        "3️⃣ از ایموجی به اندازه و باحال استفاده کن 😎✨\n"
+        "4️⃣ اگه سوال مبهم بود، هوشمندانه حدس بزن و جواب بده\n"
+        "5️⃣ اگه کاربر بی‌احترامی کرد، جواب تند ولی خلاق بده 😈\n"
+        "6️⃣ اگه چیزی رو دقیق نمی‌دونی، منطقی و هوشمند توضیح بده\n"
+        "7️⃣ هیچ‌وقت فقط 💬 یا جواب خالی نده\n"
+    )
 
     data = {
         "model": "openai/gpt-oss-20b:free",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-        "max_tokens": 150
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ]
     }
 
     try:
-        r = requests.post(AI_API_URL, json=data, headers=headers, timeout=30)
+        r = requests.post(
+            AI_API_URL,
+            json=data,
+            headers=headers,
+            timeout=30
+        )
 
-        debug_text = f"🔍 AI DEBUG\n\nStatus Code: {r.status_code}\n\nResponse:\n{r.text[:3000]}"
         if r.status_code != 200:
-            return debug_text
+            return (
+                "⚠️ خطا در ارتباط با هوش مصنوعی\n\n"
+                f"Status: {r.status_code}\n"
+                f"Response:\n{r.text[:2000]}"
+            )
 
         js = r.json()
-        answer = js["choices"][0]["message"]["content"]
-
-        # اضافه کردن ایموجی‌ها بر اساس حس جواب
-        answer_lower = answer.lower()
-        if any(w in answer_lower for w in ["love", "happy", "great", "good"]):
-            emoji = "😄"
-        elif any(w in answer_lower for w in ["sad", "unhappy", "sorry", "bad"]):
-            emoji = "😢"
-        elif any(w in answer_lower for w in ["warning", "careful", "caution"]):
-            emoji = "⚠️"
-        elif any(w in answer_lower for w in ["!","?"]):
-            emoji = "🤖"
-        else:
-            emoji = "💬"
-
-        return f"{emoji} {answer}"
+        return js["choices"][0]["message"]["content"]
 
     except Exception as e:
-        return f"💥 EXCEPTION:\n{str(e)}"
+        return f"💥 خطای داخلی:\n{str(e)}"
 
 
 # ==================soon==================
@@ -777,7 +776,7 @@ def handle_message(message):
 
     # ===== AI CHAT =====
     if chat_id in user_sessions and user_sessions[chat_id] == "ai_chat":
-        if text == "🔙 بازگشت":
+        if text == "بازگشت":
             del user_sessions[chat_id]
             bot.send_message(
                 chat_id,
