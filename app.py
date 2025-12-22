@@ -664,7 +664,7 @@ AI_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 def start(message):
     bot.send_message(
         message.chat.id,
-        f"درود به Drsbomber خوش آمديد\n\n"
+        f"درود به DrToolBox خوش آمديد\n\n"
         f"                            ⚠️ توجه ⚠️\n\n"
         f"هرگونه استفاده از اين ربات بر عهده خود شماست.\n"
         f"توسعه‌دهنده هیچ مسئولیتی در قبال سوءاستفاده یا مشکلات قانونی ندارد.",
@@ -686,7 +686,7 @@ def downloader_start(message):
     user_sessions[message.chat.id] = "downloader"
 
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row("🔙 بازگشت")
+    markup.row("بازگشت")
 
     bot.send_message(
         message.chat.id,
