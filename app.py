@@ -7,6 +7,9 @@ from flask import Flask
 from telebot import types
 import random
 import re
+import yt_dlp
+import uuid
+
 
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -672,9 +675,28 @@ def main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("💣بمبر💣")
     markup.row("🤖 هوش مصنوعی🤖")
+    markup.row("📥 دانلودر📥")
     markup.row("☎️پشتيباني☎️")
     markup.row("بزودي")
     return markup
+
+# ================== DOWNLOADER START ==================
+@bot.message_handler(func=lambda message: message.text == "📥 دانلودر📥")
+def downloader_start(message):
+    user_sessions[message.chat.id] = "downloader"
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row("🔙 بازگشت")
+
+    bot.send_message(
+        message.chat.id,
+        "📥 *دانلودر فعال شد*\n\n"
+        "🔹 لینک اینستاگرام یا یوتیوب رو بفرست\n"
+        "🔹 ویدیو یا صدا برات دانلود میشه\n\n"
+        "برای خروج: 🔙 بازگشت",
+        reply_markup=markup,
+        parse_mode="Markdown"
+    )
 
 # ================== BOMBER (دست نخورده) ==================
 @bot.message_handler(func=lambda message: message.text == "💣بمبر💣")
@@ -707,7 +729,7 @@ def ask_ai(prompt):
     }
 
     system_prompt = (
-        "تو یک هوش مصنوعی فارسی، خودمونی و زرنگ هستی 🤖\n"
+        "تو يک هوش مصنوعي فارسي هستي. فقط و فقط به زبان فارسي معيار جواب بده . استفاده از هر زباني غير از فارسي ممنون است.\n"
         "قوانین:\n"
         "- جواب‌ها کوتاه تا متوسط باشن\n"
         "- خیلی مودب یا کتابی حرف نزن\n"
@@ -716,6 +738,14 @@ def ask_ai(prompt):
         "- تا حد متوسط توضيح بده , نصيحت هم نکن\n"
         "- جواب الکی یا 💬 تنها نده\n"
         "- فقط فارسي جواب بده و کلمات نامفهوم و چرت و پرت نفرست و کاملا روي حرف هات از نظر املايي و معنايي متمرکز باش\n"
+        "- فقط فارسی روان و طبیعي"
+        "- جملات ساده و قابل فهم"
+        "- هیچ کلمه عجیب، علمیِ بی‌دلیل یا چندزبانه استفاده نکن"
+        "- اگر چیزی را نمی‌دانی، صریح بگو «نمی‌دانم»"
+        "- شوخی، ایموجی یا لحن خودمونی فقط اگر لازم بود"
+        "- توضیح اضافه، فلسفه‌بافی و پرگویی ممنوع"
+        "- اگر حتی یک کلمه غیر فارسی استفاده کنی، پاسخ اشتباه حساب می‌شود."
+        "- چرت و پرت نگو "
         
     )
 
@@ -723,6 +753,7 @@ def ask_ai(prompt):
 
     data = {
         "model": "deepseek/deepseek-r1-0528:free",
+        "temperature": 0.2,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -749,6 +780,32 @@ def ask_ai(prompt):
 
     except Exception as e:
         return f"💥 خطای داخلی:\n{str(e)}"
+
+
+
+#======================downloader=================
+
+
+def download_media(url):
+    if not os.path.exists("downloads"):
+        os.makedirs("downloads")
+
+    uid = str(uuid.uuid4())
+    output = f"downloads/{uid}.%(ext)s"
+
+    ydl_opts = {
+        "outtmpl": output,
+        "format": "best",
+        "merge_output_format": "mp4",
+        "quiet": True
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        filename = ydl.prepare_filename(info)
+
+    return filename
+
 
 
 # ==================soon==================
@@ -834,6 +891,41 @@ def handle_message(message):
             message_id=progress_msg.message_id
         )
         del user_sessions[chat_id]
+
+    # ===== DOWNLOADER =====
+    if chat_id in user_sessions and user_sessions[chat_id] == "downloader":
+        if text == "بازگشت":
+            del user_sessions[chat_id]
+            bot.send_message(
+                chat_id,
+                "🔙 برگشتی به منوی اصلی",
+                reply_markup=main_menu()
+            )
+            return
+
+        if not ("instagram.com" in text or "youtu" in text):
+            bot.send_message(chat_id, "❌ لینک معتبر نیست")
+            return
+
+        bot.send_chat_action(chat_id, "typing")
+        msg = bot.send_message(chat_id, "⏳ در حال دانلود...")
+
+        try:
+            file_path = download_media(text)
+
+            with open(file_path, "rb") as f:
+                bot.send_video(chat_id, f)
+
+            os.remove(file_path)
+
+        except Exception as e:
+            bot.edit_message_text(
+                f"❌ خطا در دانلود\n{str(e)}",
+                chat_id,
+                msg.message_id
+            )
+        return
+
 
 # ================== FLASK ==================
 @app.route('/')
