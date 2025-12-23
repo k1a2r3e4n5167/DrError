@@ -738,7 +738,6 @@ def support(message):
         f"⏰ پاسخگويي در اسرع وقت"
     )
 
-    )
 # ================== AI FUNCTION ==================
 def ask_ai(prompt):
     headers = {
