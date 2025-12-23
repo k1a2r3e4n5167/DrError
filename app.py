@@ -11,6 +11,15 @@ import yt_dlp
 import uuid
 import psycopg2
 
+def get_db_connection():
+    return psycopg2.connect(
+        host=os.environ.get("DB_HOST"),
+        database=os.environ.get("DB_NAME"),
+        user=os.environ.get("DB_USER"),
+        password=os.environ.get("DB_PASS"),
+        port=os.environ.get("DB_PORT", 5432)
+    )
+
 
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -828,7 +837,6 @@ def ai_start(message):
         "برای خروج بنویس: 🔙 بازگشت",
         parse_mode="Markdown"
     )
-
 
 # ========== DATABASE HELPERS ==========
 
