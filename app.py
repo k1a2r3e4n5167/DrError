@@ -10,6 +10,9 @@ import re
 import yt_dlp
 import uuid
 import psycopg2
+from datetime import datetime, timedelta
+import pytz  # برای timezone
+
 
 def get_db_connection():
     return psycopg2.connect(
@@ -1003,38 +1006,49 @@ def handle_message(message):
         return
 
 #===========================
-    from datetime import datetime, timedelta
+
 
 @bot.message_handler(commands=['logs'])
 def show_logs(message):
     chat_id = message.chat.id
-    minutes_ago = datetime.utcnow() - timedelta(minutes=20)
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT chat_type, message, created_at FROM all_messages "
-        "WHERE user_id=%s AND created_at >= %s ORDER BY created_at ASC",
-        (chat_id, minutes_ago)
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    try:
+        # زمان حال به UTC
+        utc_now = datetime.utcnow()
+        minutes_ago = utc_now - timedelta(minutes=20)
 
-    if not rows:
-        bot.send_message(chat_id, "در 20 دقیقه گذشته پیغامی ثبت نشده 😶‍🌫️")
-        return
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute(
+            """
+            SELECT chat_type, message, created_at
+            FROM all_messages
+            WHERE user_id=%s AND created_at >= %s
+            ORDER BY created_at ASC
+            """,
+            (chat_id, minutes_ago)
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
 
-    log_text = ""
-    for chat_type, msg_text, created_at in rows:
-        t = created_at.strftime("%H:%M:%S")
-        log_text += f"[{t}] {chat_type}: {msg_text}\n"
+        if not rows:
+            bot.send_message(chat_id, "در ۲۰ دقیقه گذشته هیچ پیغامی ثبت نشده 😶‍🌫️")
+            return
 
-    # اگر طول متن زیاد بود، پیام رو به چند قسمت تقسیم کن
-    for chunk in [log_text[i:i+4000] for i in range(0, len(log_text), 4000)]:
-        bot.send_message(chat_id, chunk)
+        # تبدیل زمان UTC به زمان تهران
+        tehran_tz = pytz.timezone("Asia/Tehran")
+        log_text = ""
+        for chat_type, msg_text, created_at in rows:
+            local_time = created_at.replace(tzinfo=pytz.utc).astimezone(tehran_tz)
+            log_text += f"[{local_time.strftime('%H:%M:%S')}] {chat_type.upper()}: {msg_text}\n"
 
-    
+        # تقسیم متن طولانی به چند پیام
+        for chunk in [log_text[i:i+4000] for i in range(0, len(log_text), 4000)]:
+            bot.send_message(chat_id, chunk)
+
+    except Exception as e:
+        bot.send_message(chat_id, f"❌ خطا در دریافت لاگ‌ها:\n{str(e)}")
 
 
 # ================== FLASK ==================
