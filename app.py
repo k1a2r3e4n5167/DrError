@@ -829,19 +829,14 @@ def ai_start(message):
         parse_mode="Markdown"
     )
 
+
 # ========== DATABASE HELPERS ==========
-def get_db_connection():
-    return psycopg2.connect(
-        host=os.environ.get("PGHOST"),
-        port=os.environ.get("PGPORT"),
-        database=os.environ.get("PGDATABASE"),
-        user=os.environ.get("PGUSER"),
-        password=os.environ.get("PGPASSWORD")
-    )
 
 def create_tables():
     conn = get_db_connection()
     cur = conn.cursor()
+    
+    # شماره‌ها
     cur.execute("""
         CREATE TABLE IF NOT EXISTS phone_numbers (
             id SERIAL PRIMARY KEY,
@@ -849,6 +844,8 @@ def create_tables():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # چت AI
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ai_chats (
             id SERIAL PRIMARY KEY,
@@ -858,9 +855,22 @@ def create_tables():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    conn.commit()
+
+    # همه پیام‌ها (عمومی، ذخیره هر پیامی که فرستاده شد)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS all_messages (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            message TEXT,
+            chat_type VARCHAR(50),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    conn.commit()  # ← ذخیره همه جدول‌ها
     cur.close()
     conn.close()
+
 
 def save_phone(phone):
     conn = get_db_connection()
@@ -873,6 +883,7 @@ def save_phone(phone):
     cur.close()
     conn.close()
 
+
 def save_ai_chat(user_id, message, response):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -884,11 +895,27 @@ def save_ai_chat(user_id, message, response):
     cur.close()
     conn.close()
 
+
+def save_all_message(user_id, message, chat_type="general"):
+    """ذخیره همه پیام‌ها با نوع چت"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO all_messages (user_id, message, chat_type) VALUES (%s, %s, %s)",
+        (user_id, message, chat_type)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
 # ========== MESSAGE HANDLER ==========
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
     text = message.text.strip()
+
+    # ذخیره همه پیام‌ها
+    save_all_message(chat_id, text, chat_type="user")
 
     # ===== AI CHAT =====
     if chat_id in user_sessions and user_sessions[chat_id] == "ai_chat":
@@ -896,7 +923,6 @@ def handle_message(message):
             del user_sessions[chat_id]
             bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu())
             return
-
         bot.send_chat_action(chat_id, "typing")
         answer = ask_ai(text)
         save_ai_chat(chat_id, text, answer)
@@ -906,23 +932,13 @@ def handle_message(message):
     # ===== BOMBER =====
     if chat_id in user_sessions and user_sessions[chat_id] == "waiting_phone":
         phone = text
-
         if not re.fullmatch(r"09\d{9}", phone):
-            bot.send_message(
-                chat_id,
-                "❌ شماره اشتباهه\n📌 فرمت صحيح: 09xxxxxxxxx\n🔢 فقط عدد و ۱۱ رقم"
-            )
+            bot.send_message(chat_id, "❌ شماره اشتباهه\n📌 فرمت صحيح: 09xxxxxxxxx\n🔢 فقط عدد و ۱۱ رقم")
             return
-
         if phone in blocked_numbers:
             bot.send_message(chat_id, "به خودي که نميشه بزني گلم 🤨")
-            bot.send_animation(
-                chat_id,
-                "https://uploadkon.ir/uploads/8d1624_25animation-2025-01-08-01-46-01-7516145351561052176.mp4"
-            )
             del user_sessions[chat_id]
             return
-
         save_phone(phone)
         user_sessions[chat_id] = "processing"
         progress_msg = bot.send_message(chat_id, "در حال ارسال...")
@@ -942,14 +958,11 @@ def handle_message(message):
             del user_sessions[chat_id]
             bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu())
             return
-
         if not ("instagram.com" in text or "youtu" in text):
             bot.send_message(chat_id, "❌ لینک معتبر نیست")
             return
-
         bot.send_chat_action(chat_id, "typing")
         msg = bot.send_message(chat_id, "⏳ در حال دانلود...")
-
         try:
             file_path = download_media(text)
             with open(file_path, "rb") as f:
@@ -958,6 +971,7 @@ def handle_message(message):
         except Exception as e:
             bot.edit_message_text(f"❌ خطا در دانلود\n{str(e)}", chat_id, msg.message_id)
         return
+
 
 # ================== FLASK ==================
 @app.route('/')
@@ -972,7 +986,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
 
 if __name__ == "__main__":
+    create_tables()  # ← ساخت جداول
     import threading
-    create_tables()
     threading.Thread(target=run_flask, daemon=True).start()
     bot.infinity_polling()
