@@ -9,6 +9,39 @@ import random
 import re
 import yt_dlp
 import uuid
+import sqlite3
+from datetime import datetime
+
+
+conn = sqlite3.connect("logs.db", check_same_thread=False)
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    username TEXT,
+    message_type TEXT,
+    content TEXT,
+    date TEXT
+)
+""")
+
+conn.commit()
+
+def log_event(message, msg_type, content):
+    cursor.execute(
+        "INSERT INTO logs (user_id, username, message_type, content, date) VALUES (?, ?, ?, ?, ?)",
+        (
+            message.from_user.id,
+            message.from_user.username,
+            msg_type,
+            content,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
+    )
+    conn.commit()
+
 
 
 
@@ -832,7 +865,16 @@ def ai_start(message):
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
-    text = message.text.strip()
+
+    # ===== LOG EVERYTHING (FIRST) =====
+    if message.content_type == "text":
+        log_event(message, "text", message.text)
+        text = message.text.strip()
+    else:
+        log_event(message, message.content_type, "NON_TEXT")
+        return
+
+
 
     # ===== AI CHAT =====
     if chat_id in user_sessions and user_sessions[chat_id] == "ai_chat":
@@ -925,6 +967,9 @@ def handle_message(message):
                 msg.message_id
             )
         return
+
+
+
 
 
 # ================== FLASK ==================
