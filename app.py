@@ -9,39 +9,6 @@ import random
 import re
 import yt_dlp
 import uuid
-import sqlite3
-from datetime import datetime
-
-
-conn = sqlite3.connect("logs.db", check_same_thread=False)
-cursor = conn.cursor()
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    username TEXT,
-    message_type TEXT,
-    content TEXT,
-    date TEXT
-)
-""")
-
-conn.commit()
-
-def log_event(message, msg_type, content):
-    cursor.execute(
-        "INSERT INTO logs (user_id, username, message_type, content, date) VALUES (?, ?, ?, ?, ?)",
-        (
-            message.from_user.id,
-            message.from_user.username,
-            msg_type,
-            content,
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        )
-    )
-    conn.commit()
-
 
 
 
@@ -861,39 +828,78 @@ def ai_start(message):
         parse_mode="Markdown"
     )
 
-# ================== MESSAGE HANDLER (دست نخورده) ==================
+# ========== DATABASE HELPERS ==========
+def get_db_connection():
+    return psycopg2.connect(
+        host=os.environ.get("PGHOST"),
+        port=os.environ.get("PGPORT"),
+        database=os.environ.get("PGDATABASE"),
+        user=os.environ.get("PGUSER"),
+        password=os.environ.get("PGPASSWORD")
+    )
+
+def create_tables():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS phone_numbers (
+            id SERIAL PRIMARY KEY,
+            phone VARCHAR(20) UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ai_chats (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            message TEXT,
+            response TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def save_phone(phone):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO phone_numbers (phone) VALUES (%s) ON CONFLICT DO NOTHING",
+        (phone,)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def save_ai_chat(user_id, message, response):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO ai_chats (user_id, message, response) VALUES (%s, %s, %s)",
+        (user_id, message, response)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# ========== MESSAGE HANDLER ==========
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
-
-    # ===== LOG EVERYTHING (FIRST) =====
-    if message.content_type == "text":
-        log_event(message, "text", message.text)
-        text = message.text.strip()
-    else:
-        log_event(message, message.content_type, "NON_TEXT")
-        return
-
-
+    text = message.text.strip()
 
     # ===== AI CHAT =====
     if chat_id in user_sessions and user_sessions[chat_id] == "ai_chat":
         if text == "بازگشت":
             del user_sessions[chat_id]
-            bot.send_message(
-                chat_id,
-                "🔙 برگشتی به منوی اصلی",
-                reply_markup=main_menu()
-            )
+            bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu())
             return
 
         bot.send_chat_action(chat_id, "typing")
         answer = ask_ai(text)
-
-        bot.send_message(
-            chat_id,
-            f"🤖 پاسخ هوش مصنوعی:\n\n{answer}"
-        )
+        save_ai_chat(chat_id, text, answer)
+        bot.send_message(chat_id, f"🤖 پاسخ هوش مصنوعی:\n\n{answer}")
         return
 
     # ===== BOMBER =====
@@ -903,10 +909,7 @@ def handle_message(message):
         if not re.fullmatch(r"09\d{9}", phone):
             bot.send_message(
                 chat_id,
-                "❌ شماره اشتباهه\n\n"
-                "📌 فرمت صحيح:\n"
-                "09xxxxxxxxx\n"
-                "🔢 فقط عدد و ۱۱ رقم"
+                "❌ شماره اشتباهه\n📌 فرمت صحيح: 09xxxxxxxxx\n🔢 فقط عدد و ۱۱ رقم"
             )
             return
 
@@ -919,6 +922,7 @@ def handle_message(message):
             del user_sessions[chat_id]
             return
 
+        save_phone(phone)
         user_sessions[chat_id] = "processing"
         progress_msg = bot.send_message(chat_id, "در حال ارسال...")
 
@@ -927,22 +931,15 @@ def handle_message(message):
             for _ in as_completed(futures):
                 pass
 
-        bot.edit_message_text(
-            "انجام شد ✅",
-            chat_id=chat_id,
-            message_id=progress_msg.message_id
-        )
+        bot.edit_message_text("انجام شد ✅", chat_id=chat_id, message_id=progress_msg.message_id)
         del user_sessions[chat_id]
+        return
 
     # ===== DOWNLOADER =====
     if chat_id in user_sessions and user_sessions[chat_id] == "downloader":
         if text == "بازگشت":
             del user_sessions[chat_id]
-            bot.send_message(
-                chat_id,
-                "🔙 برگشتی به منوی اصلی",
-                reply_markup=main_menu()
-            )
+            bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu())
             return
 
         if not ("instagram.com" in text or "youtu" in text):
@@ -954,23 +951,12 @@ def handle_message(message):
 
         try:
             file_path = download_media(text)
-
             with open(file_path, "rb") as f:
                 bot.send_video(chat_id, f)
-
             os.remove(file_path)
-
         except Exception as e:
-            bot.edit_message_text(
-                f"❌ خطا در دانلود\n{str(e)}",
-                chat_id,
-                msg.message_id
-            )
+            bot.edit_message_text(f"❌ خطا در دانلود\n{str(e)}", chat_id, msg.message_id)
         return
-
-
-
-
 
 # ================== FLASK ==================
 @app.route('/')
@@ -986,5 +972,6 @@ def run_flask():
 
 if __name__ == "__main__":
     import threading
+    create_tables()
     threading.Thread(target=run_flask, daemon=True).start()
     bot.infinity_polling()
