@@ -759,7 +759,7 @@ def bomb(message):
 @bot.message_handler(func=lambda message: message.text == "☎️پشتيباني☎️")
 def support(message):
     chat_id = message.chat.id
-    save_bot_message(chat_id, "متن پیام ربات")
+    save_bot_message(chat_id, "پشتيباني")
     bot.send_message(
         chat_id,
         f"📞 پشتيباني ربات\n\n"
@@ -793,7 +793,7 @@ def ask_ai(prompt):
         "- توضیح اضافه، فلسفه‌بافی و پرگویی ممنوع"
         "- اگر حتی یک کلمه غیر فارسی استفاده کنی، پاسخ اشتباه حساب می‌شود."
         "- چرت و پرت نگو "
-        
+        "- بهت بي احترامي شد جواب سنگين بده"
     )
 
         
@@ -1014,7 +1014,7 @@ def show_logs(message):
         bot.send_message(message.chat.id, text)
 
 
-# ========== MESSAGE HANDLER ==========
+# ================== MESSAGE HANDLER ==================
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
@@ -1026,13 +1026,15 @@ def handle_message(message):
     # ذخیره پیام کاربر
     save_all_message(chat_id, text, chat_type="user")
 
+    # ===== HANDLER بازگشت به منوی اصلی =====
+    if text == "بازگشت":
+        if chat_id in user_sessions:
+            del user_sessions[chat_id]
+        bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
+        return
+
     # ===== AI CHAT =====
     if chat_id in user_sessions and user_sessions[chat_id] == "ai_chat":
-        if text == "بازگشت":
-            del user_sessions[chat_id]
-            bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
-            return
-
         bot.send_chat_action(chat_id, "typing")
         answer = ask_ai(text)
         save_ai_chat(chat_id, text, answer)
@@ -1067,11 +1069,6 @@ def handle_message(message):
 
     # ===== DOWNLOADER =====
     if chat_id in user_sessions and user_sessions[chat_id] == "downloader":
-        if text == "بازگشت":
-            del user_sessions[chat_id]
-            bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
-            return
-
         if not ("instagram.com" in text or "youtu" in text):
             bot.send_message(chat_id, "❌ لینک معتبر نیست")
             return
