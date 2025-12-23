@@ -678,20 +678,22 @@ def start(message):
         f"                            ⚠️ توجه ⚠️\n\n"
         f"هرگونه استفاده از اين ربات بر عهده خود شماست.\n"
         f"توسعه‌دهنده هیچ مسئولیتی در قبال سوءاستفاده یا مشکلات قانونی ندارد.",
-        reply_markup=main_menu()
+        reply_markup=main_menu(message.chat.id)
     )
 
-def main_menu():
+def main_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("💣بمبر💣")
     markup.row("🤖 هوش مصنوعی🤖")
     markup.row("📥 دانلودر📥")
     markup.row("☎️پشتيباني☎️")
     markup.row("بزودي")
+    save_bot_message(chat_id, "متن پیام ربات")
     return markup
 
 # ================== DOWNLOADER START ==================
 @bot.message_handler(func=lambda message: message.text == "📥 دانلودر📥")
+
 def downloader_start(message):
     user_sessions[message.chat.id] = "downloader"
 
@@ -707,11 +709,15 @@ def downloader_start(message):
         reply_markup=markup,
         parse_mode="Markdown"
     )
+    save_bot_message(chat_id, "دانلودر فعال شد")
 
 # ================== BOMBER (دست نخورده) ==================
 @bot.message_handler(func=lambda message: message.text == "💣بمبر💣")
 def bomb_button(message):
+    chat_id = message.chat.id
+    save_bot_message(chat_id, "متن پیام ربات")
     bomb(message)
+
 
 @bot.message_handler(commands=['bomb'])
 def bomb(message):
@@ -720,16 +726,18 @@ def bomb(message):
 
 # ================== پشتيباني ==================
 
-SUPPORT_USERNAME = "@KarenKH1"  # آیدی خودت
-
 @bot.message_handler(func=lambda message: message.text == "☎️پشتيباني☎️")
 def support(message):
+    chat_id = message.chat.id
+    save_bot_message(chat_id, "متن پیام ربات")
     bot.send_message(
-        message.chat.id,
+        chat_id,
         f"📞 پشتيباني ربات\n\n"
         f"براي دادن نظرات و ايده هاي خود و مشکلات خود به اين آيدي پيغام دهيد :\n"
-        f"{SUPPORT_USERNAME}\n\n"
+        f"@KarenKH1\n\n"
         f"⏰ پاسخگويي در اسرع وقت"
+    )
+
     )
 # ================== AI FUNCTION ==================
 def ask_ai(prompt):
@@ -880,6 +888,18 @@ def create_tables():
     conn.close()
 
 
+def save_bot_message(user_id, message, chat_type="bot"):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO all_messages (user_id, message, chat_type) VALUES (%s, %s, %s)",
+        (user_id, message, chat_type)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
 def save_phone(phone):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -929,12 +949,13 @@ def handle_message(message):
     if chat_id in user_sessions and user_sessions[chat_id] == "ai_chat":
         if text == "بازگشت":
             del user_sessions[chat_id]
-            bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu())
+            bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
             return
         bot.send_chat_action(chat_id, "typing")
         answer = ask_ai(text)
         save_ai_chat(chat_id, text, answer)
         bot.send_message(chat_id, f"🤖 پاسخ هوش مصنوعی:\n\n{answer}")
+        save_bot_message(chat_id, answer)
         return
 
     # ===== BOMBER =====
@@ -945,6 +966,7 @@ def handle_message(message):
             return
         if phone in blocked_numbers:
             bot.send_message(chat_id, "به خودي که نميشه بزني گلم 🤨")
+            save_bot_message(chat_id, "شماره بلاک شده")
             del user_sessions[chat_id]
             return
         save_phone(phone)
@@ -964,7 +986,7 @@ def handle_message(message):
     if chat_id in user_sessions and user_sessions[chat_id] == "downloader":
         if text == "بازگشت":
             del user_sessions[chat_id]
-            bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu())
+            bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
             return
         if not ("instagram.com" in text or "youtu" in text):
             bot.send_message(chat_id, "❌ لینک معتبر نیست")
@@ -978,7 +1000,42 @@ def handle_message(message):
             os.remove(file_path)
         except Exception as e:
             bot.edit_message_text(f"❌ خطا در دانلود\n{str(e)}", chat_id, msg.message_id)
+            save_bot_message(chat_id, "خطا در دانلود")
         return
+
+#===========================
+    from datetime import datetime, timedelta
+
+@bot.message_handler(commands=['logs'])
+def show_logs(message):
+    chat_id = message.chat.id
+    minutes_ago = datetime.utcnow() - timedelta(minutes=20)
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT chat_type, message, created_at FROM all_messages "
+        "WHERE user_id=%s AND created_at >= %s ORDER BY created_at ASC",
+        (chat_id, minutes_ago)
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    if not rows:
+        bot.send_message(chat_id, "در 20 دقیقه گذشته پیغامی ثبت نشده 😶‍🌫️")
+        return
+
+    log_text = ""
+    for chat_type, msg_text, created_at in rows:
+        t = created_at.strftime("%H:%M:%S")
+        log_text += f"[{t}] {chat_type}: {msg_text}\n"
+
+    # اگر طول متن زیاد بود، پیام رو به چند قسمت تقسیم کن
+    for chunk in [log_text[i:i+4000] for i in range(0, len(log_text), 4000)]:
+        bot.send_message(chat_id, chunk)
+
+    
 
 
 # ================== FLASK ==================
