@@ -832,12 +832,11 @@ def ai_start(message):
 # ========== DATABASE HELPERS ==========
 def get_db_connection():
     return psycopg2.connect(
-        host=os.environ.get("postgres.railway.internal"),
-        port=os.environ.get("5432"),
-        database=os.environ.get("railway"),
-        user=os.environ.get("postgres"),
-        password=os.environ.get("ToFxYkApKFbVotkpxgPOzzNTxTmZnAqI")
-        
+        host=os.environ.get("PGHOST"),
+        port=os.environ.get("PGPORT"),
+        database=os.environ.get("PGDATABASE"),
+        user=os.environ.get("PGUSER"),
+        password=os.environ.get("PGPASSWORD")
     )
 
 def create_tables():
