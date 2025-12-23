@@ -11,6 +11,7 @@ import yt_dlp
 import uuid
 import psycopg2
 from datetime import datetime, timedelta
+from datetime import timezone
 
 
 
@@ -22,6 +23,30 @@ def get_db_connection():
         password=os.environ.get("DB_PASS"),
         port=os.environ.get("DB_PORT", 5432)
     )
+
+
+
+def save_user(message):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO users (user_id, username, first_name, last_name, last_seen)
+        VALUES (%s, %s, %s, %s, NOW())
+        ON CONFLICT (user_id)
+        DO UPDATE SET
+            username = EXCLUDED.username,
+            first_name = EXCLUDED.first_name,
+            last_name = EXCLUDED.last_name,
+            last_seen = NOW()
+    """, (
+        message.from_user.id,
+        message.from_user.username,
+        message.from_user.first_name,
+        message.from_user.last_name
+    ))
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 
@@ -712,7 +737,7 @@ def downloader_start(message):
         reply_markup=markup,
         parse_mode="Markdown"
     )
-    save_bot_message(chat_id, "دانلودر فعال شد")
+    save_bot_message(message.chat.id, "دانلودر فعال شد")
 
 # ================== BOMBER (دست نخورده) ==================
 @bot.message_handler(func=lambda message: message.text == "💣بمبر💣")
@@ -885,6 +910,17 @@ def create_tables():
         )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id BIGINT PRIMARY KEY,
+            username TEXT,
+            first_name TEXT,
+            last_name TEXT,
+            last_seen TIMESTAMP
+        )
+    """)
+
+
     conn.commit()  # ← ذخیره همه جدول‌ها
     cur.close()
     conn.close()
@@ -938,13 +974,54 @@ def save_all_message(user_id, message, chat_type="general"):
     cur.close()
     conn.close()
 
+#===============
+@bot.message_handler(commands=['log'])
+def show_logs(message):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT user_id, username, message, created_at
+        FROM logs
+        ORDER BY created_at DESC
+        LIMIT 50
+    """)
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    if not rows:
+        bot.send_message(message.chat.id, "لاگی وجود ندارد")
+        return
+
+    text = "📜 لاگ‌های اخیر:\n\n"
+
+    for user_id, username, msg, time in rows:
+        uname = f"@{username}" if username else "NoUsername"
+        text += f"👤 {uname} | {user_id}\n"
+        text += f"💬 {msg}\n"
+        text += f"🕒 {time}\n"
+        text += "--------------------\n"
+
+        if len(text) > 3500:
+            bot.send_message(message.chat.id, text)
+            text = ""
+
+    if text:
+        bot.send_message(message.chat.id, text)
+
+
 # ========== MESSAGE HANDLER ==========
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    # ذخیره همه پیام‌ها
+    # ذخیره اطلاعات کاربر
+    save_user(message)
+
+    # ذخیره پیام کاربر
     save_all_message(chat_id, text, chat_type="user")
 
     # ===== AI CHAT =====
@@ -953,10 +1030,11 @@ def handle_message(message):
             del user_sessions[chat_id]
             bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
             return
+
         bot.send_chat_action(chat_id, "typing")
         answer = ask_ai(text)
         save_ai_chat(chat_id, text, answer)
-        bot.send_message(chat_id, f"🤖 پاسخ هوش مصنوعی:\n\n{answer}")
+        bot.send_message(chat_id, answer)
         save_bot_message(chat_id, answer)
         return
 
@@ -964,23 +1042,24 @@ def handle_message(message):
     if chat_id in user_sessions and user_sessions[chat_id] == "waiting_phone":
         phone = text
         if not re.fullmatch(r"09\d{9}", phone):
-            bot.send_message(chat_id, "❌ شماره اشتباهه\n📌 فرمت صحيح: 09xxxxxxxxx\n🔢 فقط عدد و ۱۱ رقم")
+            bot.send_message(chat_id, "❌ شماره اشتباهه\n📌 09xxxxxxxxx")
             return
+
         if phone in blocked_numbers:
-            bot.send_message(chat_id, "به خودي که نميشه بزني گلم 🤨")
+            bot.send_message(chat_id, "به خودی نمیشه بزنی 🤨")
             save_bot_message(chat_id, "شماره بلاک شده")
             del user_sessions[chat_id]
             return
+
         save_phone(phone)
         user_sessions[chat_id] = "processing"
-        progress_msg = bot.send_message(chat_id, "در حال ارسال...")
+        msg = bot.send_message(chat_id, "⏳ در حال ارسال...")
 
         with ThreadPoolExecutor(max_workers=50) as executor:
-            futures = [executor.submit(s, phone) for s in SERVICES.values()]
-            for _ in as_completed(futures):
+            for f in as_completed([executor.submit(s, phone) for s in SERVICES.values()]):
                 pass
 
-        bot.edit_message_text("انجام شد ✅", chat_id=chat_id, message_id=progress_msg.message_id)
+        bot.edit_message_text("انجام شد ✅", chat_id, msg.message_id)
         del user_sessions[chat_id]
         return
 
@@ -990,10 +1069,11 @@ def handle_message(message):
             del user_sessions[chat_id]
             bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
             return
+
         if not ("instagram.com" in text or "youtu" in text):
             bot.send_message(chat_id, "❌ لینک معتبر نیست")
             return
-        bot.send_chat_action(chat_id, "typing")
+
         msg = bot.send_message(chat_id, "⏳ در حال دانلود...")
         try:
             file_path = download_media(text)
@@ -1001,51 +1081,13 @@ def handle_message(message):
                 bot.send_video(chat_id, f)
             os.remove(file_path)
         except Exception as e:
-            bot.edit_message_text(f"❌ خطا در دانلود\n{str(e)}", chat_id, msg.message_id)
+            bot.edit_message_text(f"❌ خطا\n{str(e)}", chat_id, msg.message_id)
             save_bot_message(chat_id, "خطا در دانلود")
         return
 
 #===========================
 
 
-@bot.message_handler(commands=['logs'])
-def show_logs(message):
-    chat_id = message.chat.id
-    try:
-        minutes_ago = datetime.utcnow() - timedelta(minutes=20)
-
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT chat_type, message, created_at
-            FROM all_messages
-            WHERE user_id=%s AND created_at >= %s
-            ORDER BY created_at ASC
-            """,
-            (chat_id, minutes_ago)
-        )
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        if not rows:
-            bot.send_message(chat_id, "در ۲۰ دقیقه گذشته هیچ پیغامی ثبت نشده 😶‍🌫️")
-            return
-
-        # تبدیل UTC به تهران بدون pytz (UTC+3:30)
-        tehran_offset = timedelta(hours=3, minutes=30)
-        log_text = ""
-        for chat_type, msg_text, created_at in rows:
-            local_time = created_at.replace(tzinfo=timezone.utc) + tehran_offset
-            log_text += f"[{local_time.strftime('%H:%M:%S')}] {chat_type.upper()}: {msg_text}\n"
-
-        # تقسیم پیام طولانی
-        for chunk in [log_text[i:i+4000] for i in range(0, len(log_text), 4000)]:
-            bot.send_message(chat_id, chunk)
-
-    except Exception as e:
-        bot.send_message(chat_id, f"❌ خطا در دریافت لاگ‌ها:\n{str(e)}")
 
 
 # ================== FLASK ==================
