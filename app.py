@@ -9,6 +9,7 @@ import random
 import re
 import yt_dlp
 import uuid
+import psycopg2
 
 
 
