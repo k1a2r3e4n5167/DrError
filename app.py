@@ -11,7 +11,7 @@ import yt_dlp
 import uuid
 import psycopg2
 from datetime import datetime, timedelta
-import pytz  # برای timezone
+
 
 
 def get_db_connection():
@@ -1012,13 +1012,10 @@ def handle_message(message):
 def show_logs(message):
     chat_id = message.chat.id
     try:
-        # زمان حال به UTC
-        utc_now = datetime.utcnow()
-        minutes_ago = utc_now - timedelta(minutes=20)
+        minutes_ago = datetime.utcnow() - timedelta(minutes=20)
 
         conn = get_db_connection()
         cur = conn.cursor()
-        
         cur.execute(
             """
             SELECT chat_type, message, created_at
@@ -1036,14 +1033,14 @@ def show_logs(message):
             bot.send_message(chat_id, "در ۲۰ دقیقه گذشته هیچ پیغامی ثبت نشده 😶‍🌫️")
             return
 
-        # تبدیل زمان UTC به زمان تهران
-        tehran_tz = pytz.timezone("Asia/Tehran")
+        # تبدیل UTC به تهران بدون pytz (UTC+3:30)
+        tehran_offset = timedelta(hours=3, minutes=30)
         log_text = ""
         for chat_type, msg_text, created_at in rows:
-            local_time = created_at.replace(tzinfo=pytz.utc).astimezone(tehran_tz)
+            local_time = created_at.replace(tzinfo=timezone.utc) + tehran_offset
             log_text += f"[{local_time.strftime('%H:%M:%S')}] {chat_type.upper()}: {msg_text}\n"
 
-        # تقسیم متن طولانی به چند پیام
+        # تقسیم پیام طولانی
         for chunk in [log_text[i:i+4000] for i in range(0, len(log_text), 4000)]:
             bot.send_message(chat_id, chunk)
 
