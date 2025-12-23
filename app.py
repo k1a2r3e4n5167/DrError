@@ -704,7 +704,7 @@ def start(message):
     bot.send_message(
         message.chat.id,
         f"درود به DrToolBox خوش آمديد\n\n"
-        f"⚠️ توجه ⚠️\n\n"
+        f"                            ⚠️ توجه ⚠️\n\n"
         f"هرگونه استفاده از اين ربات بر عهده خود شماست.\n"
         f"توسعه‌دهنده هیچ مسئولیتی در قبال سوءاستفاده یا مشکلات قانونی ندارد.",
         reply_markup=main_menu(message.chat.id)
@@ -718,7 +718,6 @@ def main_menu(chat_id):
     markup.row("📥 دانلودر📥")
     markup.row("☎️پشتيباني☎️")
     markup.row("بزودي")
-    save_bot_message(chat_id, "متن پیام ربات")
     return markup
 
 # ================== DOWNLOADER START ==================
@@ -735,7 +734,7 @@ def downloader_start(message):
         "📥 *دانلودر فعال شد*\n\n"
         "🔹 لینک اینستاگرام یا یوتیوب رو بفرست\n"
         "🔹 ویدیو یا صدا برات دانلود میشه\n\n"
-        "برای خروج: 🔙 بازگشت",
+        "براي خروج بنويس : بازگشت",
         reply_markup=markup,
         parse_mode="Markdown"
     )
@@ -745,14 +744,17 @@ def downloader_start(message):
 @bot.message_handler(func=lambda message: message.text == "💣بمبر💣")
 def bomb_button(message):
     chat_id = message.chat.id
-    save_bot_message(chat_id, "متن پیام ربات")
+    save_bot_message(chat_id, "بمبر")
     bomb(message)
 
 
 @bot.message_handler(commands=['bomb'])
 def bomb(message):
     user_sessions[message.chat.id] = "waiting_phone"
-    bot.send_message(message.chat.id, "شماره با 09:")
+    bot.send_message(message.chat.id, f"به بخش اس ام اس بمبر خوش آمديد \n:"
+                                      f"لطفا شماره را با 09 شروع کنيد\n"
+                                      f"مثال : 09123456789"
+    )
 
 # ================== پشتيباني ==================
 
@@ -785,15 +787,15 @@ def ask_ai(prompt):
         "- تا حد متوسط توضيح بده , نصيحت هم نکن\n"
         "- جواب الکی یا 💬 تنها نده\n"
         "- فقط فارسي جواب بده و کلمات نامفهوم و چرت و پرت نفرست و کاملا روي حرف هات از نظر املايي و معنايي متمرکز باش\n"
-        "- فقط فارسی روان و طبیعي"
-        "- جملات ساده و قابل فهم"
-        "- هیچ کلمه عجیب، علمیِ بی‌دلیل یا چندزبانه استفاده نکن"
-        "- اگر چیزی را نمی‌دانی، صریح بگو «نمی‌دانم»"
-        "- شوخی، ایموجی یا لحن خودمونی فقط اگر لازم بود"
-        "- توضیح اضافه، فلسفه‌بافی و پرگویی ممنوع"
-        "- اگر حتی یک کلمه غیر فارسی استفاده کنی، پاسخ اشتباه حساب می‌شود."
-        "- چرت و پرت نگو "
-        "- بهت بي احترامي شد جواب سنگين بده"
+        "- فقط فارسی روان و طبیعي\n"
+        "- جملات ساده و قابل فهم\n"
+        "- هیچ کلمه عجیب، علمیِ بی‌دلیل یا چندزبانه استفاده نکن\n"
+        "- اگر چیزی را نمی‌دانی، صریح بگو «نمی‌دانم»\n"
+        "- شوخی، ایموجی یا لحن خودمونی فقط اگر لازم بود\n"
+        "- توضیح اضافه، فلسفه‌بافی و پرگویی ممنوع\n"
+        "- اگر حتی یک کلمه غیر فارسی استفاده کنی، پاسخ اشتباه حساب می‌شود.\n"
+        "- چرت و پرت نگو \n"
+        "- بهت بي احترامي کردن خيلي بد فحش بده\n"
     )
 
         
@@ -856,22 +858,19 @@ def download_media(url):
 
 
 # ==================soon==================
-@bot.message_handler(func=lambda message: message.text == "بزودي")
-def soon(message):
-    bot.send_message(
-        message.chat.id,
-        "عامو نوشتم بزودي 😒"
-    )
+
 #=============================AI======================================
 @bot.message_handler(func=lambda message: message.text == "🤖 هوش مصنوعی🤖")
 def ai_start(message):
+    chat_id = message.chat.id
+    save_bot_message(chat_id, "AI")
     user_sessions[message.chat.id] = "ai_chat"
     bot.send_message(
         message.chat.id,
         "🤖 *هوش مصنوعی فعال شد*\n\n"
         "⚠توقع زيادي نداشته باش اين مدل فقط براي دسترسي راحت تر ساخته شده⚠ \n\n"
         "سوالت رو بنویس ✍️\n"
-        "برای خروج بنویس: 🔙 بازگشت",
+        "براي خروج بنويس : بازگشت",
         parse_mode="Markdown"
     )
 
@@ -983,35 +982,34 @@ def show_logs(message):
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT user_id, username, message, created_at
-        FROM logs
-        ORDER BY created_at DESC
+        SELECT 
+            all_messages.user_id,
+            users.username,
+            all_messages.message,
+            all_messages.created_at
+        FROM all_messages
+        LEFT JOIN users ON users.user_id = all_messages.user_id
+        ORDER BY all_messages.created_at DESC
         LIMIT 50
     """)
-    rows = cur.fetchall()
 
+    rows = cur.fetchall()
     cur.close()
     conn.close()
 
     if not rows:
-        bot.send_message(message.chat.id, "لاگی وجود ندارد")
+        bot.send_message(message.chat.id, "📭 لاگی وجود ندارد")
         return
 
-    text = "📜 لاگ‌های اخیر:\n\n"
+    text = "🧾 آخرین لاگ‌ها:\n\n"
+    for user_id, username, msg, created_at in rows:
+        name = username if username else "بدون_یوزرنیم"
+        text += f"👤 {name} ({user_id})\n💬 {msg}\n🕒 {created_at}\n\n"
 
-    for user_id, username, msg, time in rows:
-        uname = f"@{username}" if username else "NoUsername"
-        text += f"👤 {uname} | {user_id}\n"
-        text += f"💬 {msg}\n"
-        text += f"🕒 {time}\n"
-        text += "--------------------\n"
+    # تلگرام محدودیت داره
+    for i in range(0, len(text), 4000):
+        bot.send_message(message.chat.id, text[i:i+4000])
 
-        if len(text) > 3500:
-            bot.send_message(message.chat.id, text)
-            text = ""
-
-    if text:
-        bot.send_message(message.chat.id, text)
 
 
 # ================== MESSAGE HANDLER ==================
