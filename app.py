@@ -746,7 +746,7 @@ SERVICES = {
         headers={"Content-Type": "application/json"},
         timeout=5,
         verify=False
-    
+    )
 }
 # ================== DATA ==================
 user_sessions = {}
