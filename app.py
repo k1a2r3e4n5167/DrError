@@ -722,7 +722,6 @@ def main_menu(chat_id):
 @bot.message_handler(func=lambda message: message.text == "📥 دانلودر📥")
 def downloader_start(message):
     user_sessions[message.chat.id] = "downloader"
-
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("بازگشت")
 
@@ -742,6 +741,7 @@ def downloader_start(message):
 def bomb_button(message):
     chat_id = message.chat.id
     save_bot_message(chat_id, "بمبر")
+    user_sessions[chat_id] = "waiting_phone"
     bomb(message)
 
 @bot.message_handler(commands=['bomb'])
@@ -1145,6 +1145,7 @@ def handle_message(message):
             with open(file_path, "rb") as f:
                 bot.send_video(chat_id, f)
             os.remove(file_path)
+            del user_sessions[chat_id]  # ← پاک کردن session بعد از تمام شدن دانلود
         except Exception as e:
             bot.edit_message_text(f"❌ خطا\n{str(e)}", chat_id, msg.message_id)
             save_bot_message(chat_id, "خطا در دانلود")
