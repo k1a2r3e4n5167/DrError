@@ -985,60 +985,82 @@ def admin_panel(message):
 
 #==================admin_handler====================
 
-@bot.message_handler(func=lambda m: m.from_user.id in ADMINS and user_sessions.get(m.chat.id) == "admin_main")
-
+@bot.message_handler(
+    func=lambda m: (
+        m.from_user.id in ADMINS and
+        user_sessions.get(m.chat.id) in {
+            "admin_main",
+            "adding_admin",
+            "removing_admin"
+        }
+    )
+)
 def handle_admin_actions(message):
     chat_id = message.chat.id
     text = message.text.strip()
+    state = user_sessions.get(chat_id)
 
-    # برگشت به منوی اصلی
+    # بازگشت
     if text == "بازگشت":
         user_sessions.pop(chat_id, None)
-        bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
+        bot.send_message(
+            chat_id,
+            "🔙 برگشتی به منوی اصلی",
+            reply_markup=main_menu(chat_id)
+        )
         return
 
-    # فعال/غیرفعال بمبر
-    if text == "💣 فعال/غیرفعال بمبر 💣":
-        global BOMBER_ACTIVE
-        BOMBER_ACTIVE = not BOMBER_ACTIVE
-        state = "فعال شد ✅" if BOMBER_ACTIVE else "غیرفعال شد ❌"
-        bot.send_message(chat_id, f"💣 بمبر اکنون {state}")
+    # منوی اصلی ادمین
+    if state == "admin_main":
+
+        if text == "💣 فعال/غیرفعال بمبر 💣":
+            global BOMBER_ACTIVE
+            BOMBER_ACTIVE = not BOMBER_ACTIVE
+            status = "فعال شد ✅" if BOMBER_ACTIVE else "غیرفعال شد ❌"
+            bot.send_message(chat_id, f"💣 بمبر {status}")
+            return
+
+        if text == "➕ اضافه کردن ادمین":
+            user_sessions[chat_id] = "adding_admin"
+            bot.send_message(chat_id, "🆔 آی‌دی عددی کاربر را بفرست:")
+            return
+
+        if text == "➖ حذف ادمین":
+            user_sessions[chat_id] = "removing_admin"
+            bot.send_message(chat_id, "🆔 آی‌دی عددی ادمین را بفرست:")
+            return
+
+        bot.send_message(chat_id, "❓ دستور نامعتبر")
         return
 
-    # شروع اضافه کردن ادمین
-    if text == "➕ اضافه کردن ادمین":
-        user_sessions[chat_id] = "adding_admin"
-        bot.send_message(chat_id, "آی‌دی کاربر جدید برای ادمین شدن را بفرستید:")
-        return
-
-    # شروع حذف ادمین
-    if text == "➖ حذف ادمین":
-        user_sessions[chat_id] = "removing_admin"
-        bot.send_message(chat_id, "آی‌دی کاربر برای حذف از ادمین‌ها را بفرستید:")
-        return
-
-    # حالت اضافه کردن ادمین
-    if user_sessions.get(chat_id) == "adding_admin":
+    # اضافه کردن ادمین
+    if state == "adding_admin":
         try:
-            new_id = int(text)
-            ADMINS.add(new_id)
-            bot.send_message(chat_id, f"✅ آی‌دی {new_id} به ادمین‌ها اضافه شد")
+            new_admin_id = int(text)
+            ADMINS.add(new_admin_id)
+            bot.send_message(
+                chat_id,
+                f"✅ آی‌دی `{new_admin_id}` به ادمین‌ها اضافه شد",
+                parse_mode="Markdown"
+            )
         except:
-            bot.send_message(chat_id, "❌ آی‌دی نامعتبر")
+            bot.send_message(chat_id, "❌ آی‌دی معتبر نیست")
+
         user_sessions[chat_id] = "admin_main"
         return
 
-    # حالت حذف ادمین
-    if user_sessions.get(chat_id) == "removing_admin":
+    # حذف ادمین
+    if state == "removing_admin":
         try:
             remove_id = int(text)
             if remove_id in ADMINS:
                 ADMINS.remove(remove_id)
-                bot.send_message(chat_id, f"✅ آی‌دی {remove_id} از ادمین‌ها حذف شد")
+                bot.send_message(chat_id, f"✅ آی‌دی {remove_id} حذف شد")
             else:
-                bot.send_message(chat_id, "❌ این آی‌دی در لیست ادمین‌ها نیست")
+                bot.send_message(chat_id, "❌ این آی‌دی ادمین نیست")
         except:
-            bot.send_message(chat_id, "❌ آی‌دی نامعتبر")
+            bot.send_message(chat_id, "❌ آی‌دی معتبر نیست")
+
         user_sessions[chat_id] = "admin_main"
         return
 
