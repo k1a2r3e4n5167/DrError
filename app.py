@@ -773,8 +773,28 @@ def ask_ai(prompt):
         "Content-Type": "application/json"
     }
     system_prompt = (
-        "تو يک هوش مصنوعي فارسي هستي..."
+        "تو يک هوش مصنوعي فارسي هستي. فقط و فقط به زبان فارسي معيار جواب بده . استفاده از هر زباني غير از فارسي ممنون است.\n"
+        "قوانین:\n"
+        "- جواب‌ها کوتاه تا متوسط باشن\n"
+        "- خیلی مودب یا کتابی حرف نزن\n"
+        "- از ایموجی کم ولی بجا استفاده کن 😏🔥\n"
+        "- اگه فحش دادن , فحش بده\n"
+        "- تا حد متوسط توضيح بده , نصيحت هم نکن\n"
+        "- جواب الکی یا 💬 تنها نده\n"
+        "- فقط فارسي جواب بده و کلمات نامفهوم و چرت و پرت نفرست و کاملا روي حرف هات از نظر املايي و معنايي متمرکز باش\n"
+        "- فقط فارسی روان و طبیعي\n"
+        "- جملات ساده و قابل فهم\n"
+        "- هیچ کلمه عجیب، علمیِ بی‌دلیل یا چندزبانه استفاده نکن\n"
+        "- اگر چیزی را نمی‌دانی، صریح بگو «نمی‌دانم»\n"
+        "- شوخی، ایموجی یا لحن خودمونی فقط اگر لازم بود\n"
+        "- توضیح اضافه، فلسفه‌بافی و پرگویی ممنوع\n"
+        "- اگر حتی یک کلمه غیر فارسی استفاده کنی، پاسخ اشتباه حساب می‌شود.\n"
+        "- چرت و پرت نگو \n"
+        "- بهت بي احترامي کردن خيلي بد فحش بده\n"
+        "- اگر کسي به کارن خدامرادي توهين کرد فقط بگو : سيکتير, ولي اگر اسم کارن خدامرادي يا معرفي شو گفتن بکو که سازنده ي توه \n"
     )
+
+
     data = {
         "model": "deepseek/deepseek-r1-0528:free",
         "temperature": 0.2,
@@ -1004,59 +1024,84 @@ def handle_message(message):
             save_bot_message(chat_id, "خطا در دانلود")
         return
 
-# ================== ADMIN PANEL HANDLER ==================
+
+
+#=======================
+
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
     if message.from_user.id not in ADMINS:
-        bot.send_message(message.chat.id, "❌ دسترسی ندارید!")
         return
+
+    user_sessions[message.chat.id] = "admin_main"
+
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("💣 فعال/غیرفعال بمبر 💣")
     markup.row("➕ اضافه کردن ادمین", "➖ حذف ادمین")
     markup.row("بازگشت")
-    bot.send_message(message.chat.id, "📌 منوی ادمین:", reply_markup=markup)
 
-@bot.message_handler(func=lambda m: m.from_user.id in ADMINS)
-def handle_admin_buttons(message):
-    global BOMBER_ACTIVE
+    bot.send_message(
+        message.chat.id,
+        "🔐 پنل ادمین",
+        reply_markup=markup
+    )
+
+# ================== ADMIN PANEL HANDLER ==================
+@bot.message_handler(func=lambda m: m.from_user.id in ADMINS and m.chat.id in user_sessions)
+def handle_admin_actions(message):
+    chat_id = message.chat.id
     text = message.text.strip()
 
+    # برگشت به منوی اصلی
+    if text == "بازگشت":
+        user_sessions.pop(chat_id, None)
+        bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
+        return
+
+    # فعال/غیرفعال بمبر
     if text == "💣 فعال/غیرفعال بمبر 💣":
+        global BOMBER_ACTIVE
         BOMBER_ACTIVE = not BOMBER_ACTIVE
         state = "فعال شد ✅" if BOMBER_ACTIVE else "غیرفعال شد ❌"
-        bot.send_message(message.chat.id, f"💣 بمبر اکنون {state}")
+        bot.send_message(chat_id, f"💣 بمبر اکنون {state}")
+        return
 
-    elif text == "➕ اضافه کردن ادمین":
-        bot.send_message(message.chat.id, "آی‌دی کاربر جدید برای ادمین شدن را بفرستید:")
+    # شروع اضافه کردن ادمین
+    if text == "➕ اضافه کردن ادمین":
+        user_sessions[chat_id] = "adding_admin"
+        bot.send_message(chat_id, "آی‌دی کاربر جدید برای ادمین شدن را بفرستید:")
+        return
 
-        @bot.message_handler(func=lambda msg: msg.from_user.id in ADMINS)
-        def add_new_admin(msg):
-            try:
-                new_id = int(msg.text.strip())
-                ADMINS.add(new_id)
-                bot.send_message(msg.chat.id, f"✅ آی‌دی {new_id} به ادمین‌ها اضافه شد")
-            except:
-                bot.send_message(msg.chat.id, "❌ آی‌دی نامعتبر")
-            admin_panel(msg)
+    # شروع حذف ادمین
+    if text == "➖ حذف ادمین":
+        user_sessions[chat_id] = "removing_admin"
+        bot.send_message(chat_id, "آی‌دی کاربر برای حذف از ادمین‌ها را بفرستید:")
+        return
 
-    elif text == "➖ حذف ادمین":
-        bot.send_message(message.chat.id, "آی‌دی کاربر برای حذف از ادمین‌ها را بفرستید:")
+    # حالت اضافه کردن ادمین
+    if user_sessions.get(chat_id) == "adding_admin":
+        try:
+            new_id = int(text)
+            ADMINS.add(new_id)
+            bot.send_message(chat_id, f"✅ آی‌دی {new_id} به ادمین‌ها اضافه شد")
+        except:
+            bot.send_message(chat_id, "❌ آی‌دی نامعتبر")
+        user_sessions[chat_id] = "admin_main"
+        return
 
-        @bot.message_handler(func=lambda msg: msg.from_user.id in ADMINS)
-        def remove_admin(msg):
-            try:
-                remove_id = int(msg.text.strip())
-                if remove_id in ADMINS:
-                    ADMINS.remove(remove_id)
-                    bot.send_message(msg.chat.id, f"✅ آی‌دی {remove_id} از ادمین‌ها حذف شد")
-                else:
-                    bot.send_message(msg.chat.id, "❌ این آی‌دی در لیست ادمین‌ها نیست")
-            except:
-                bot.send_message(msg.chat.id, "❌ آی‌دی نامعتبر")
-            admin_panel(msg)
-
-    elif text == "بازگشت":
-        bot.send_message(message.chat.id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(message.chat.id))
+    # حالت حذف ادمین
+    if user_sessions.get(chat_id) == "removing_admin":
+        try:
+            remove_id = int(text)
+            if remove_id in ADMINS:
+                ADMINS.remove(remove_id)
+                bot.send_message(chat_id, f"✅ آی‌دی {remove_id} از ادمین‌ها حذف شد")
+            else:
+                bot.send_message(chat_id, "❌ این آی‌دی در لیست ادمین‌ها نیست")
+        except:
+            bot.send_message(chat_id, "❌ آی‌دی نامعتبر")
+        user_sessions[chat_id] = "admin_main"
+        return
 
 # ================== FLASK ==================
 @app.route('/')
