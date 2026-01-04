@@ -17,7 +17,7 @@ import psycopg2
 # ======================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 AI_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-ROOT_ADMIN = @KarenKH1  # آیدی خودت
+ROOT_ADMIN = KarenKH1  # آیدی خودت
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
