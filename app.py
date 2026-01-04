@@ -334,11 +334,107 @@ def admin_panel(message):
     markup.row("بازگشت")
     bot.send_message(message.chat.id, "🔐 پنل ادمین", reply_markup=markup)
 
+# ================== ADMIN BUTTONS ==================
+@bot.message_handler(func=lambda message: user_sessions.get(message.chat.id) == "admin_main")
+def admin_buttons(message):
+    chat_id = message.chat.id
+    text = message.text.strip()
+
+    # بمبر فعال/غیرفعال
+    if text == "💣 فعال/غیرفعال بمبر 💣":
+        global BOMBER_ACTIVE
+        BOMBER_ACTIVE = not BOMBER_ACTIVE
+        status = "فعال ✅" if BOMBER_ACTIVE else "غیرفعال ❌"
+        bot.send_message(chat_id, f"بمبر اکنون {status} است")
+        return
+
+    # اضافه کردن ادمین
+    if text == "➕ اضافه کردن ادمین":
+        user_sessions[chat_id] = "admin_add"
+        bot.send_message(chat_id, "لطفا آی‌دی تلگرام کاربر جدید را وارد کنید:")
+        return
+
+    # حذف ادمین
+    if text == "➖ حذف ادمین":
+        user_sessions[chat_id] = "admin_remove"
+        bot.send_message(chat_id, "لطفا آی‌دی تلگرام کاربری که میخوای حذف کنی را وارد کنید:")
+        return
+
+    # ارسال پیام سراسری
+    if text == "📢 ارسال پیام سراسری":
+        user_sessions[chat_id] = "admin_broadcast"
+        bot.send_message(chat_id, "پیام سراسری را وارد کنید:")
+        return
+
+    # بازگشت به منوی اصلی
+    if text == "بازگشت":
+        del user_sessions[chat_id]
+        bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
+        return
+
+
+# ================== ADMIN SESSION HANDLERS ==================
+@bot.message_handler(func=lambda message: user_sessions.get(message.chat.id) in ["admin_add", "admin_remove", "admin_broadcast"])
+def handle_admin_sessions(message):
+    chat_id = message.chat.id
+    text = message.text.strip()
+
+    if user_sessions[chat_id] == "admin_add":
+        try:
+            new_admin_id = int(text)
+            ADMINS.add(new_admin_id)
+            bot.send_message(chat_id, f"ادمین جدید اضافه شد ✅\nآی‌دی: {new_admin_id}")
+        except ValueError:
+            bot.send_message(chat_id, "❌ آی‌دی معتبر نیست")
+        del user_sessions[chat_id]
+        return
+
+    if user_sessions[chat_id] == "admin_remove":
+        try:
+            remove_id = int(text)
+            if remove_id in ADMINS:
+                ADMINS.remove(remove_id)
+                bot.send_message(chat_id, f"ادمین حذف شد ✅\nآی‌دی: {remove_id}")
+            else:
+                bot.send_message(chat_id, "❌ این کاربر ادمین نیست")
+        except ValueError:
+            bot.send_message(chat_id, "❌ آی‌دی معتبر نیست")
+        del user_sessions[chat_id]
+        return
+
+    if user_sessions[chat_id] == "admin_broadcast":
+        for user_id in get_all_users():  # تابع get_all_users باید همه user_id ها را از دیتابیس بیاره
+            try:
+                bot.send_message(user_id, f"📢 پیام سراسری:\n\n{text}")
+            except:
+                pass
+        bot.send_message(chat_id, "پیام سراسری ارسال شد ✅")
+        del user_sessions[chat_id]
+        return
+
+
+# ================== HELPER: GET ALL USERS ==================
+def get_all_users():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM users")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [row[0] for row in rows]
+
+
 # ================== MESSAGE HANDLER ==================
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
     text = message.text.strip()
+
+    # ⚠ اگر کاربر session ندارد و هنوز /start نزده، اجازه ادامه نمیده
+    if chat_id not in user_sessions and text != "/start":
+        bot.send_message(chat_id, "⚠ لطفا ابتدا /start را بزنید تا ربات شما را بشناسد.")
+        return
+
     save_user(message)
     save_all_message(chat_id, text, chat_type="user")
 
@@ -401,6 +497,7 @@ def handle_message(message):
             bot.edit_message_text(f"❌ خطا\n{str(e)}", chat_id, msg.message_id)
             save_bot_message(chat_id, "خطا در دانلود")
         return
+
 
 # ================== FLASK ==================
 @app.route('/')
