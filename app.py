@@ -12,6 +12,7 @@ import uuid
 import psycopg2
 from datetime import datetime, timedelta
 from datetime import timezone
+
 # ================== DATABASE ==================
 def get_db_connection():
     return psycopg2.connect(
@@ -52,6 +53,7 @@ app = Flask(__name__)
 
 # ================== DATA ==================
 user_sessions = {}
+SESSION_TIMEOUT = timedelta(minutes=15)
 blocked_numbers = {
     "09224005771",
     "09182649455",
@@ -59,6 +61,18 @@ blocked_numbers = {
     "09180520256",
     "09189834173"
 }
+# ================== SESSION HELPERS ==================
+def check_session(chat_id):
+    session = user_sessions.get(chat_id)
+    if not session:
+        return False
+    if datetime.now(timezone.utc) - session["last_active"] > SESSION_TIMEOUT:
+        del user_sessions[chat_id]
+        bot.send_message(chat_id, "⚠️ مدت زمان فعالیت شما تمام شد. لطفا /start بزنید.")
+        return False
+    # update last_active
+    user_sessions[chat_id]["last_active"] = datetime.now(timezone.utc)
+    return True
 
 # ================== AI CONFIG ==================
 AI_API_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -790,22 +804,24 @@ def save_all_message(user_id, message, chat_type="general"):
 @bot.message_handler(commands=['start'])
 def start(message):
     save_user(message)
+    chat_id = message.chat.id
+    user_sessions[chat_id] = {"state": "main_menu", "last_active": datetime.now(timezone.utc)}
     bot.send_message(
-        message.chat.id,
+        chat_id,
         f"درود به DrToolBox خوش آمديد\n\n"
         f"⚠️ توجه ⚠️\n\n"
         f"هرگونه استفاده از اين ربات بر عهده خود شماست.\n"
         f"توسعه‌دهنده هیچ مسئولیتی در قبال سوءاستفاده یا مشکلات قانونی ندارد.",
-        reply_markup=main_menu(message.chat.id)
+        reply_markup=main_menu(chat_id)
     )
 
 def main_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
 
-    markup.row("💣 بمبر 💣")
-    markup.row("🤖 هوش مصنوعی 🤖", "📥 دانلودر 📥")
+    markup.row("💣بمبر💣")
+    markup.row("🤖هوش مصنوعی🤖", "📥 دانلودر📥")
     markup.row("soon")
-    markup.row("☎️ پشتيباني ☎️", "بزودي")
+    markup.row("☎️پشتيباني☎", "بزودي")
 
     return markup
 
@@ -814,12 +830,19 @@ def main_menu(chat_id):
 def bomb_button(message):
     chat_id = message.chat.id
     save_bot_message(chat_id, "بمبر")
-    user_sessions[chat_id] = "waiting_phone"
+    user_sessions[chat_id] = {
+    "state": "waiting_phone",
+    "last_active": datetime.now(timezone.utc)
+}
     bomb(message)
 
 @bot.message_handler(commands=['bomb'])
 def bomb(message):
-    user_sessions[message.chat.id] = "waiting_phone"
+    user_sessions[message.chat.id] = {
+        "state": "waiting_phone",
+        "last_active": datetime.now(timezone.utc)
+    }
+    
     bot.send_message(message.chat.id, f"به بخش اس ام اس بمبر خوش آمديد \n:"
                                       f"لطفا شماره را با 09 شروع کنيد\n"
                                       f"مثال : 09123456789\n"
@@ -828,7 +851,7 @@ def bomb(message):
 # ================== DOWNLOADER ==================
 @bot.message_handler(func=lambda message: message.text == "📥 دانلودر📥")
 def downloader_start(message):
-    user_sessions[message.chat.id] = "downloader"
+    user_sessions[message.chat.id] = {"state": "downloader", "last_active": datetime.now(timezone.utc)}
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("بازگشت")
     bot.send_message(
@@ -854,11 +877,15 @@ def download_media(url):
     return filename
 
 # ================== AI ==================
-@bot.message_handler(func=lambda message: message.text == "🤖 هوش مصنوعی🤖")
+@bot.message_handler(func=lambda message: message.text == "🤖هوش مصنوعی🤖")
 def ai_start(message):
     chat_id = message.chat.id
     save_bot_message(chat_id, "AI")
-    user_sessions[chat_id] = "ai_chat"
+    user_sessions[chat_id] = {
+    "state": "ai_chat",
+    "last_active": datetime.now(timezone.utc)
+}
+
     bot.send_message(
         chat_id,
         "🤖 *هوش مصنوعی فعال شد*\n\n"
@@ -938,7 +965,7 @@ def soon(message):
 def admin_panel(message):
     if message.from_user.id not in ADMINS:
         return
-    user_sessions[message.chat.id] = "admin_main"
+    user_sessions[message.chat.id] = {"state": "admin_main", "last_active": datetime.now(timezone.utc)}
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row("💣 فعال/غیرفعال بمبر 💣")
     markup.row("➕ اضافه کردن ادمین", "➖ حذف ادمین")
@@ -947,7 +974,7 @@ def admin_panel(message):
     bot.send_message(message.chat.id, "🔐 پنل ادمین", reply_markup=markup)
 
 # ================== ADMIN BUTTONS ==================
-@bot.message_handler(func=lambda message: user_sessions.get(message.chat.id) == "admin_main")
+@bot.message_handler(func=lambda message: user_sessions.get(message.chat.id, {}).get("state") == "admin_main")
 def admin_buttons(message):
     chat_id = message.chat.id
     text = message.text.strip()
@@ -962,19 +989,31 @@ def admin_buttons(message):
 
     # اضافه کردن ادمین
     if text == "➕ اضافه کردن ادمین":
-        user_sessions[chat_id] = "admin_add"
+        user_sessions[chat_id] = {
+    "state": "admin_add",
+    "last_active": datetime.now(timezone.utc)
+}
+
         bot.send_message(chat_id, "لطفا آی‌دی تلگرام کاربر جدید را وارد کنید:")
         return
 
     # حذف ادمین
     if text == "➖ حذف ادمین":
-        user_sessions[chat_id] = "admin_remove"
+        user_sessions[chat_id] = {
+    "state": "admin_remove",
+    "last_active": datetime.now(timezone.utc)
+}
+
         bot.send_message(chat_id, "لطفا آی‌دی تلگرام کاربری که میخوای حذف کنی را وارد کنید:")
         return
 
     # ارسال پیام سراسری
     if text == "📢 ارسال پیام سراسری":
-        user_sessions[chat_id] = "admin_broadcast"
+        user_sessions[chat_id] = {
+    "state": "admin_broadcast",
+    "last_active": datetime.now(timezone.utc)
+}
+
         bot.send_message(chat_id, "پیام سراسری را وارد کنید:")
         return
 
@@ -986,12 +1025,12 @@ def admin_buttons(message):
 
 
 # ================== ADMIN SESSION HANDLERS ==================
-@bot.message_handler(func=lambda message: user_sessions.get(message.chat.id) in ["admin_add", "admin_remove", "admin_broadcast"])
+@bot.message_handler(func=lambda message: user_sessions.get(message.chat.id, {}).get("state") in ["admin_add", "admin_remove", "admin_broadcast"])
 def handle_admin_sessions(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    if user_sessions[chat_id] == "admin_add":
+    if user_sessions[chat_id]["state"] == "admin_add":
         try:
             new_admin_id = int(text)
             ADMINS.add(new_admin_id)
@@ -1001,7 +1040,7 @@ def handle_admin_sessions(message):
         del user_sessions[chat_id]
         return
 
-    if user_sessions[chat_id] == "admin_remove":
+    if user_sessions[chat_id]["state"] == "admin_remove":
         try:
             remove_id = int(text)
             if remove_id in ADMINS:
@@ -1014,7 +1053,7 @@ def handle_admin_sessions(message):
         del user_sessions[chat_id]
         return
 
-    if user_sessions[chat_id] == "admin_broadcast":
+    if user_sessions[chat_id]["state"] == "admin_broadcast":
         for user_id in get_all_users():  # تابع get_all_users باید همه user_id ها را از دیتابیس بیاره
             try:
                 bot.send_message(user_id, f"📢 پیام سراسری:\n\n{text}")
@@ -1037,14 +1076,14 @@ def get_all_users():
 
 
 # ================== MESSAGE HANDLER ==================
+# ================== MESSAGE HANDLER ==================
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    # ⚠ اگر کاربر session ندارد و هنوز /start نزده، اجازه ادامه نمیده
-    if chat_id not in user_sessions and text != "/start":
-        bot.send_message(chat_id, "⚠ لطفا ابتدا /start را بزنید تا ربات شما را بشناسد.")
+    # ⚠ چک کردن session و timeout
+    if not check_session(chat_id) and text != "/start":
         return
 
     save_user(message)
@@ -1053,13 +1092,15 @@ def handle_message(message):
     # خروج از منو
     if text == "بازگشت":
         if chat_id in user_sessions:
-            del user_sessions[chat_id]
+            user_sessions[chat_id]["state"] = "main_menu"
         bot.send_message(chat_id, "🔙 برگشتی به منوی اصلی", reply_markup=main_menu(chat_id))
         return
 
-    user_type = user_sessions.get(chat_id, None)
 
-    # AI
+    # نوع کاربر از session
+    user_type = user_sessions.get(chat_id, {}).get("state")
+
+    # ================== AI ==================
     if user_type == "ai_chat":
         bot.send_chat_action(chat_id, "typing")
         answer = ask_ai(text)
@@ -1068,11 +1109,11 @@ def handle_message(message):
         save_bot_message(chat_id, answer)
         return
 
-    # BOMBER
+    # ================== BOMBER ==================
     if user_type == "waiting_phone":
         if not BOMBER_ACTIVE:
             bot.send_message(chat_id, "بمبر به دليل اتفاقات اخير و ضعيفي اينترنت متوقف شده است")
-            del user_sessions[chat_id]
+            user_sessions[chat_id]["state"] = "main_menu"
             return
         phone = text
         if not re.fullmatch(r"09\d{9}", phone):
@@ -1081,21 +1122,21 @@ def handle_message(message):
         if phone in blocked_numbers:
             bot.send_message(chat_id, "به خودی نمیشه بزنی 🤨")
             save_bot_message(chat_id, "شماره بلاک شده")
-            del user_sessions[chat_id]
+            user_sessions[chat_id]["state"] = "main_menu"
             return
         save_phone(phone)
-        user_sessions[chat_id] = "processing"
+        user_sessions[chat_id]["state"] = "processing"
         msg = bot.send_message(chat_id, "⏳ در حال ارسال...")
-        with ThreadPoolExecutor(max_workers=50) as executor:
+        with ThreadPoolExecutor(max_workers=20) as executor:
             for f in as_completed([executor.submit(s, phone) for s in SERVICES.values()]):
                 pass
         bot.edit_message_text("انجام شد ✅", chat_id, msg.message_id)
-        del user_sessions[chat_id]
+        user_sessions[chat_id]["state"] = "main_menu"
         return
 
-    # DOWNLOADER
+    # ================== DOWNLOADER ==================
     if user_type == "downloader":
-        if not ("instagram.com" in text or "youtu" in text):
+        if not ("instagram.com" in text or "youtube.com" in text or "youtu.be" in text):
             bot.send_message(chat_id, "❌ لینک معتبر نیست")
             return
         msg = bot.send_message(chat_id, "⏳ در حال دانلود...")
@@ -1104,10 +1145,20 @@ def handle_message(message):
             with open(file_path, "rb") as f:
                 bot.send_video(chat_id, f)
             os.remove(file_path)
-            del user_sessions[chat_id]
+            user_sessions[chat_id]["state"] = "main_menu"
         except Exception as e:
             bot.edit_message_text(f"❌ خطا\n{str(e)}", chat_id, msg.message_id)
             save_bot_message(chat_id, "خطا در دانلود")
+        return
+
+    # ================== ADMIN ==================
+    if user_type == "admin_main":
+        admin_buttons(message)
+        return
+
+    # ================== ADMIN SESSION HANDLERS ==================
+    if user_type in ["admin_add", "admin_remove", "admin_broadcast"]:
+        handle_admin_sessions(message)
         return
 
 # ================== FLASK ==================
@@ -1120,7 +1171,7 @@ def health():
     return "OK"
 
 def run_flask():
-    app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
 
 # ================== RUN ==================
 if __name__ == "__main__":
