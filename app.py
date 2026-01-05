@@ -12,9 +12,6 @@ import uuid
 import psycopg2
 from datetime import datetime, timedelta
 from datetime import timezone
-import instaloader
-import contextlib
-import sys
 # ================== DATABASE ==================
 def get_db_connection():
     return psycopg2.connect(
@@ -807,7 +804,7 @@ def main_menu(chat_id):
 
     markup.row("💣 بمبر 💣")
     markup.row("🤖 هوش مصنوعی 🤖", "📥 دانلودر 📥")
-    markup.row("🔍 اينستاچکر")
+    markup.row("soon")
     markup.row("☎️ پشتيباني ☎️", "بزودي")
 
     return markup
@@ -948,74 +945,6 @@ def admin_panel(message):
     markup.row("📢 ارسال پیام سراسری")
     markup.row("بازگشت")
     bot.send_message(message.chat.id, "🔐 پنل ادمین", reply_markup=markup)
-#============================instagram==================
-def ig_osint(username):
-    @contextlib.contextmanager
-    def silent_output():
-        with open(os.devnull, 'w') as devnull:
-            old_stdout = sys.stdout
-            old_stderr = sys.stderr
-            sys.stdout = devnull
-            sys.stderr = devnull
-            try:
-                yield
-            finally:
-                sys.stdout = old_stdout
-                sys.stderr = old_stderr
-
-    try:
-        with silent_output():
-            loader = instaloader.Instaloader()
-            profile = instaloader.Profile.from_username(loader.context, username)
-
-        result = {
-            "full_name": profile.full_name,
-            "username": profile.username,
-            "userid": profile.userid,
-            "bio": profile.biography,
-            "profile_url": f"https://instagram.com/{profile.username}",
-            "profile_pic": profile.profile_pic_url,
-            "posts": profile.mediacount,
-            "followers": profile.followers,
-            "following": profile.followees,
-            "verified": profile.is_verified,
-            "private": profile.is_private,
-            "business": profile.is_business_account,
-            "category": profile.business_category_name if profile.is_business_account else None,
-            "last_posts": []
-        }
-
-        if not profile.is_private:
-            for i, post in enumerate(profile.get_posts()):
-                result["last_posts"].append({
-                    "url": f"https://www.instagram.com/p/{post.shortcode}/",
-                    "date": post.date.strftime("%Y-%m-%d %H:%M"),
-                    "likes": post.likes,
-                    "comments": post.comments,
-                    "caption": post.caption
-                })
-                if i == 4:
-                    break
-
-        return result
-
-    except Exception as e:
-        return {"error": str(e)}
-#=========================insta handle============
-@bot.message_handler(func=lambda m: m.text == "🔍 اينستاچکر")
-def ig_osint_start(message):
-    chat_id = message.chat.id
-    user_sessions[chat_id] = "ig_osint"
-    bot.send_message(
-        chat_id,
-        "📸 *بررسی اکانت اینستاگرام*\n\n"
-        "یوزرنیم رو بدون @ بفرست\n"
-        "مثال:\n"
-        "`instagram`\n\n"
-        "برای خروج: بازگشت",
-        parse_mode="Markdown"
-    )
-
 
 # ================== ADMIN BUTTONS ==================
 @bot.message_handler(func=lambda message: user_sessions.get(message.chat.id) == "admin_main")
@@ -1180,60 +1109,6 @@ def handle_message(message):
             bot.edit_message_text(f"❌ خطا\n{str(e)}", chat_id, msg.message_id)
             save_bot_message(chat_id, "خطا در دانلود")
         return
-
-
-# INSTAGRAM OSINT
-    if user_type == "ig_osint":
-        username = text.replace("@", "").strip()
-
-        if not re.fullmatch(r"[A-Za-z0-9._]{1,30}", username):
-            bot.send_message(chat_id, "❌ یوزرنیم نامعتبره")
-            return
-
-        msg = bot.send_message(chat_id, "⏳ در حال بررسی اکانت...")
-
-        data = ig_osint(username)
-
-        if "error" in data:
-            bot.edit_message_text(
-                "❌ خطا\n"
-                "یا یوزر وجود نداره\n"
-                "یا محدودیت اینستاگرام خوردی\n\n"
-                f"Error: {data['error']}",
-                chat_id,
-                msg.message_id
-            )
-            return
-
-        text_out = (
-            f"📸 *Instagram OSINT*\n\n"
-            f"👤 نام: {data['full_name']}\n"
-            f"🆔 یوزرنیم: {data['username']}\n"
-            f"🔢 ID: {data['userid']}\n"
-            f"📄 بیو:\n{data['bio']}\n\n"
-            f"👥 فالوئر: {data['followers']}\n"
-            f"➡️ فالووینگ: {data['following']}\n"
-            f"📦 پست‌ها: {data['posts']}\n"
-            f"✅ وریفای: {data['verified']}\n"
-            f"🔒 پرایوت: {data['private']}\n"
-            f"🏢 بیزینسی: {data['business']}\n"
-        )
-
-        if data["category"]:
-            text_out += f"📌 دسته‌بندی: {data['category']}\n"
-
-        if data["last_posts"]:
-            text_out += "\n📌 *۵ پست آخر:*\n"
-            for p in data["last_posts"]:
-                text_out += (
-                    f"\n🔗 {p['url']}\n"
-                    f"❤️ {p['likes']} | 💬 {p['comments']}\n"
-                    f"🕒 {p['date']}\n"
-                 )
-
-        bot.edit_message_text(text_out, chat_id, msg.message_id, parse_mode="Markdown")
-        return
-
 
 # ================== FLASK ==================
 @app.route('/')
